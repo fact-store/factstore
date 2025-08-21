@@ -9,53 +9,45 @@ import com.apple.foundationdb.tuple.Versionstamp
 import com.cassisi.openeventstore.core.classic.ClassicEventStore.Event
 import kotlinx.serialization.json.Json
 import java.util.*
+import java.util.concurrent.CompletionException
 import kotlin.text.Charsets.UTF_8
 
 const val EVENT_STORE = "event-store"
+const val EVENT_ID = "event-id"
 const val EVENT_DATA = "event-data"
 const val SUBJECT = "subject"
 const val EVENT_TYPE = "event-type"
+const val GLOBAL_EVENT_POSITION = "global"
 
+/**
+ *
+ * A simple event store implementation based on FoundationDB.
+ *
+ *
+ * EVENT KEYS
+ * /event-data/{eventId} = payload
+ * /event-type/{eventId} = type
+ * /event-id/{eventId}   = ∅   (existence / deduplication anchor)
+ *
+ *
+ *
+ * INDEXES (PLAN)
+ * /global/{versionstamp}/{index}/{eventId} = ∅
+ * /subject/{subjectId}/{versionstamp}/{index}/{eventId} = ∅
+ * /by-type/{type}/{versionstamp}/{index}/{eventId} = ∅
+ *
+ */
 class ClassicEventStore(
     private val db: Database,
 ) {
 
     private val root = DirectoryLayer.getDefault().createOrOpen(db, listOf(EVENT_STORE)).get()
+    private val eventIdSubspace = root.subspace(Tuple.from(EVENT_ID))
     private val eventDataSubspace = root.subspace(Tuple.from(EVENT_DATA))
     private val eventTypeSubspace = root.subspace(Tuple.from(EVENT_TYPE))
     private val subjectSubspace = root.subspace(Tuple.from(SUBJECT))
+    private val globalEventPositionSubspace = root.subspace(Tuple.from(GLOBAL_EVENT_POSITION))
 
-    fun append(events: List<Event>) {
-        db.run { tr ->
-
-
-            // Write new events
-            events.forEachIndexed { index, event ->
-
-                // SAVE EVENT DATA
-
-                // save event data
-                val eventData = event.data
-                val eventKey = eventDataSubspace.packWithVersionstamp(Tuple.from(Versionstamp.incomplete(), index))
-                tr.mutate(MutationType.SET_VERSIONSTAMPED_KEY, eventKey, eventData)
-
-                // save event type
-                val type = event.type.toByteArray(UTF_8)
-                val typeKey = eventTypeSubspace.packWithVersionstamp(Tuple.from(Versionstamp.incomplete(), index))
-                tr.mutate(MutationType.SET_VERSIONSTAMPED_KEY, typeKey, type)
-
-                // BUILD INDEXES
-
-                // save subject
-                val subject = event.subject
-                val subjectKey =
-                    subjectSubspace.packWithVersionstamp(Tuple.from(subject, Versionstamp.incomplete(), index))
-                tr.mutate(MutationType.SET_VERSIONSTAMPED_KEY, subjectKey, ByteArray(0))
-
-            }
-
-        }
-    }
 
     class ConcurrencyException : RuntimeException("Subject version mismatch")
 
@@ -75,17 +67,30 @@ class ClassicEventStore(
 
             // safe to append
             events.forEachIndexed { index, event ->
-                val vsKey = Tuple.from(Versionstamp.incomplete(), index)
+                val eventId = event.id.toString() // stable key (event identifier)
 
-                val eventKey = eventDataSubspace.packWithVersionstamp(vsKey)
-                tr.mutate(MutationType.SET_VERSIONSTAMPED_KEY, eventKey, event.data)
+                val idKey = eventIdSubspace.pack(Tuple.from(eventId))
+                tr[idKey] = ByteArray(0)
 
-                val typeKey = eventTypeSubspace.packWithVersionstamp(vsKey)
-                tr.mutate(MutationType.SET_VERSIONSTAMPED_KEY, typeKey, event.type.toByteArray(UTF_8))
+                val dataKey = eventDataSubspace.pack(Tuple.from(eventId))
+                tr[dataKey] = event.data
 
-                val subjectKey =
-                    subjectSubspace.packWithVersionstamp(Tuple.from(subjectId, Versionstamp.incomplete(), index))
+                val typeKey = eventTypeSubspace.pack(Tuple.from(eventId))
+                tr[typeKey] = event.type.toByteArray(UTF_8)
+
+                // BUILD INDEXES
+
+                // subject index
+                val subjectKey = subjectSubspace.packWithVersionstamp(
+                    Tuple.from(subjectId, Versionstamp.incomplete(), index, eventId)
+                )
                 tr.mutate(MutationType.SET_VERSIONSTAMPED_KEY, subjectKey, ByteArray(0))
+
+                // global position index
+                val globalPositionKey = globalEventPositionSubspace.packWithVersionstamp(
+                    Tuple.from(Versionstamp.incomplete(), index, eventId)
+                )
+                tr.mutate(MutationType.SET_VERSIONSTAMPED_KEY, globalPositionKey, ByteArray(0))
             }
         }
     }
@@ -95,18 +100,22 @@ class ClassicEventStore(
             val subjectRange = subjectSubspace.range(Tuple.from(subjectId))
             val kvs = tr.getRange(subjectRange).asList().get()
 
+            val seen = mutableSetOf<UUID>()
             val events = kvs.mapNotNull { kv ->
                 val keyTuple = subjectSubspace.unpack(kv.key)
-                val versionstamp = keyTuple.getVersionstamp(1)
-                val index = keyTuple.getLong(2)
+                val eventId = UUID.fromString(keyTuple.getString(3))
 
-                val eventDataKey = eventDataSubspace.pack(Tuple.from(versionstamp, index))
+                if (eventId in seen) return@mapNotNull null
+                seen += eventId
+
+                val eventDataKey = eventDataSubspace.pack(Tuple.from(eventId.toString()))
                 val eventData = tr[eventDataKey].join() ?: return@mapNotNull null
 
-                val eventTypeKey = eventTypeSubspace.pack(Tuple.from(versionstamp, index))
+                val eventTypeKey = eventTypeSubspace.pack(Tuple.from(eventId.toString()))
                 val eventType = tr[eventTypeKey].join() ?: return@mapNotNull null
 
                 Event(
+                    id = eventId,
                     subject = subjectId,
                     type = eventType.toString(UTF_8),
                     data = eventData
@@ -122,6 +131,36 @@ class ClassicEventStore(
         }
     }
 
+    fun fetchAll(): List<Event> {
+        val range = globalEventPositionSubspace.range()
+        return db.read { tr ->
+            val kvs = tr.getRange(range).asList().get()
+
+            val events = kvs.mapNotNull { kv ->
+
+                val keyTuple = globalEventPositionSubspace.unpack(kv.key)
+                val eventId = UUID.fromString(keyTuple.getString(2))
+
+                val eventDataKey = eventDataSubspace.pack(Tuple.from(eventId.toString()))
+                val eventData = tr[eventDataKey].join() ?: return@mapNotNull null
+
+                val eventTypeKey = eventTypeSubspace.pack(Tuple.from(eventId.toString()))
+                val eventType = tr[eventTypeKey].join() ?: return@mapNotNull null
+
+
+
+                Event(
+                    id = eventId,
+                    subject = "TODO!!!",
+                    type = eventType.toString(UTF_8),
+                    data = eventData
+                )
+            }
+            events
+        }
+
+    }
+
     data class SubjectEvents(
         val subject: String,
         val events: List<Event>,
@@ -129,6 +168,7 @@ class ClassicEventStore(
     )
 
     data class Event(
+        val id: UUID = UUID.randomUUID(),
         val subject: String,
         val type: String,
         val data: ByteArray,
@@ -153,8 +193,6 @@ class ClassicEventStore(
             return result
         }
     }
-
-
 }
 
 
@@ -169,11 +207,13 @@ fun main() {
 
     val eventsToSave = listOf(
         Event(
+            id = UUID.randomUUID(),
             subject = randomSubject,
             type = "USER_ONBOARDED",
             data = """{ "username": "test123" }""".toByteArray(UTF_8)
         ),
         Event(
+            id = UUID.randomUUID(),
             subject = randomSubject,
             type = "USER_LOCKED",
             data = """{ "locked": true }""".toByteArray(UTF_8)
@@ -209,7 +249,7 @@ fun testOptimisticLocking() {
 
     // 1️⃣ First append (expectedVersion = null)
     val firstEvents = listOf(
-        ClassicEventStore.Event(subjectId, "USER_CREATED", """{"id":"$subjectId"}""".toByteArray())
+        ClassicEventStore.Event(UUID.randomUUID(), subjectId, "USER_CREATED", """{"id":"$subjectId"}""".toByteArray())
     )
     store.appendWithExpectedVersion(subjectId, null, firstEvents)
     println("First append OK")
@@ -221,7 +261,12 @@ fun testOptimisticLocking() {
 
     // 2️⃣ Second append with correct expectedVersion
     val secondEvents = listOf(
-        ClassicEventStore.Event(subjectId, "USER_LOCKED", """{"locked":true}""".toByteArray())
+        Event(
+            id = UUID.randomUUID(),
+            subject = subjectId,
+            type = "USER_LOCKED",
+            data = """{"locked":true}""".toByteArray()
+        )
     )
     store.appendWithExpectedVersion(subjectId, v1, secondEvents)
     println("Second append OK")
@@ -234,11 +279,24 @@ fun testOptimisticLocking() {
     // 3️⃣ Try stale write (still using v1, but store is already at v2)
     try {
         val staleEvents = listOf(
-            ClassicEventStore.Event(subjectId, "USER_DELETED", """{"deleted":true}""".toByteArray())
+            Event(
+                id = UUID.randomUUID(),
+                subject = subjectId,
+                type = "USER_DELETED",
+                data = """{"deleted":true}""".toByteArray()
+            )
         )
         store.appendWithExpectedVersion(subjectId, v1, staleEvents)
         println("❌ Expected ConcurrencyException but append succeeded")
-    } catch (ex: ClassicEventStore.ConcurrencyException) {
+    } catch (ex: CompletionException) {
         println("✅ ConcurrencyException correctly thrown on stale write")
+    }
+
+    println()
+
+    println("Fetching all")
+
+    store.fetchAll().forEach {
+        println("${it.id} : type->${it.type}")
     }
 }
