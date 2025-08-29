@@ -8,6 +8,7 @@ import com.apple.foundationdb.tuple.Tuple
 import com.apple.foundationdb.tuple.Versionstamp
 import com.cassisi.openeventstore.core.classic.ClassicEventStore.Event
 import kotlinx.serialization.json.Json
+import java.time.Instant
 import java.util.*
 import java.util.concurrent.CompletionException
 import kotlin.text.Charsets.UTF_8
@@ -19,7 +20,9 @@ const val SUBJECT_TYPE = "subject-type"
 const val SUBJECT_ID = "subject"
 const val SUBJECT_INDEX = "subjectIdx"
 const val EVENT_TYPE = "event-type"
+const val CREATED_AT = "created-at"
 const val GLOBAL_EVENT_POSITION = "global"
+const val CREATED_AT_INDEX = "created-at-index"
 
 /**
  *
@@ -32,6 +35,7 @@ const val GLOBAL_EVENT_POSITION = "global"
  * /event-type/{eventId} = type
  * /subject-type/{eventId} = subjectType
  * /subject-id/{eventId} = subjectId
+ * /created-at/{eventId} = timestamp in UTC
  *
  *
  *
@@ -53,9 +57,11 @@ class ClassicEventStore(
     private val eventTypeSubspace = root.subspace(Tuple.from(EVENT_TYPE))
     private val subjectTypeSubspace = root.subspace(Tuple.from(SUBJECT_TYPE))
     private val subjectIdSubspace = root.subspace(Tuple.from(SUBJECT_ID))
+    private val createdAtSubspace = root.subspace(Tuple.from(CREATED_AT))
 
     // INDEXES
     private val subjectIndexSubspace = root.subspace(Tuple.from(SUBJECT_INDEX))
+    private val createdAtIndexSubspace = root.subspace(Tuple.from(CREATED_AT_INDEX))
     private val globalEventPositionSubspace = root.subspace(Tuple.from(GLOBAL_EVENT_POSITION))
 
 
@@ -99,6 +105,9 @@ class ClassicEventStore(
                 val subjectIdKey = subjectIdSubspace.pack(Tuple.from(eventId))
                 tr[subjectIdKey] = event.subjectId.toByteArray(UTF_8)
 
+                val createdAtKey = createdAtSubspace.pack(Tuple.from(eventId))
+                tr[createdAtKey] = Tuple.from(event.createdAt.toEpochMilli()).pack()
+
                 // BUILD INDEXES
 
                 // subject index
@@ -112,6 +121,12 @@ class ClassicEventStore(
                     Tuple.from(Versionstamp.incomplete(), index, eventId)
                 )
                 tr.mutate(MutationType.SET_VERSIONSTAMPED_KEY, globalPositionKey, ByteArray(0))
+
+                // CreatedAt index: query events between time ranges
+                val createdAtIndexKey = createdAtIndexSubspace.packWithVersionstamp(
+                    Tuple.from(event.createdAt.toEpochMilli(), Versionstamp.incomplete(), index, eventId)
+                )
+                tr.mutate(MutationType.SET_VERSIONSTAMPED_KEY, createdAtIndexKey, ByteArray(0))
             }
         }
     }
@@ -135,12 +150,17 @@ class ClassicEventStore(
                 val eventTypeKey = eventTypeSubspace.pack(Tuple.from(eventId.toString()))
                 val eventType = tr[eventTypeKey].join() ?: return@mapNotNull null
 
+                val createdAtKey = createdAtSubspace.pack(Tuple.from(eventId.toString()))
+                val millis = Tuple.fromBytes(tr[createdAtKey].join()).getLong(0)
+                val createdAt = Instant.ofEpochMilli(millis)
+
                 Event(
                     id = eventId,
                     subjectId = subjectId,
                     subjectType = subjectType,
                     type = eventType.toString(UTF_8),
-                    data = eventData
+                    data = eventData,
+                    createdAt = createdAt,
                 )
             }
 
@@ -175,12 +195,18 @@ class ClassicEventStore(
                 val subjectTypeKey = subjectTypeSubspace.pack(Tuple.from(eventId.toString()))
                 val subjectType = tr[subjectTypeKey].join() ?: return@mapNotNull null
 
+                val createdAtKey = createdAtSubspace.pack(Tuple.from(eventId.toString()))
+                val test: ByteArray = tr[createdAtKey].join()
+                val millis = Tuple.fromBytes(test).getLong(0)
+                val createdAt = Instant.ofEpochMilli(millis)
+
                 Event(
                     id = eventId,
                     subjectType = subjectType.toString(UTF_8),
                     subjectId = subjectId.toString(UTF_8),
                     type = eventType.toString(UTF_8),
-                    data = eventData
+                    data = eventData,
+                    createdAt = createdAt,
                 )
             }
             events
@@ -200,6 +226,7 @@ class ClassicEventStore(
         val subjectId: String,
         val type: String,
         val data: ByteArray,
+        val createdAt: Instant = Instant.now(),
     ) {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
@@ -334,6 +361,6 @@ fun testOptimisticLocking() {
     println("Fetching all")
 
     store.fetchAll().forEach {
-        println("${it.id} : type->${it.type}")
+        println("$it")
     }
 }
