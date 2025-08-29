@@ -43,6 +43,7 @@ const val CREATED_AT_INDEX = "created-at-index"
  * /global/{versionstamp}/{index}/{eventId} = ∅
  * /subject/{subjectId}/{versionstamp}/{index}/{eventId} = ∅
  * /by-type/{type}/{versionstamp}/{index}/{eventId} = ∅
+ * /created-at-index/{createdAt}/{vs}/{index}/{eventId} = ∅
  *
  */
 class ClassicEventStore(
