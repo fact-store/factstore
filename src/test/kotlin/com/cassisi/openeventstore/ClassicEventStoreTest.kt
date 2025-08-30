@@ -3,6 +3,9 @@ package com.cassisi.openeventstore
 import com.apple.foundationdb.FDB
 import com.cassisi.openeventstore.core.classic.ClassicEventStore
 import com.cassisi.openeventstore.core.classic.ClassicEventStore.Event
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.*
 import java.time.Instant
@@ -20,6 +23,11 @@ class ClassicEventStoreTest {
         FDB.selectAPIVersion(730)
         val db = FDB.instance().open("/etc/foundationdb/fdb.cluster")
         store = ClassicEventStore(db)
+    }
+
+    @BeforeEach
+    fun clearEventStore() {
+        store.reset()
     }
 
     @Test
@@ -113,6 +121,51 @@ class ClassicEventStoreTest {
         } catch (ex: CompletionException) {
             println("ConcurrencyException correctly thrown on stale write")
         }
+    }
+
+    @Test
+    fun testStreamEventsEmitsNewAppends(): Unit = runBlocking {
+        val subjectId = "subject:${UUID.randomUUID()}"
+        val createdAt = Instant.now()
+
+        val eventsToSave = listOf(
+            Event(
+                id = UUID.randomUUID(),
+                subjectType = "USER",
+                subjectId = subjectId,
+                type = "USER_REGISTERED",
+                data = """{ "username": "streamer" }""".toByteArray(UTF_8),
+                createdAt = createdAt
+            ),
+            Event(
+                id = UUID.randomUUID(),
+                subjectType = "USER",
+                subjectId = subjectId,
+                type = "USER_VERIFIED",
+                data = """{ "verified": true }""".toByteArray(UTF_8),
+                createdAt = createdAt
+            )
+        )
+
+        // Collect stream in background
+        val collected = async {
+            store.streamEvents(batchSize = 10, pollDelayMs = 50)
+                .take(eventsToSave.size) // only take as many as we append
+                .toList()
+        }
+
+        // Small delay to ensure collector is active before appending
+        delay(200)
+
+        // Append events
+        store.appendWithExpectedVersion("USER", subjectId, null, eventsToSave)
+
+        // Wait for collection
+        val streamed = collected.await()
+
+        assertThat(streamed).containsAll(eventsToSave)
+        assertThat(streamed.map { it.type })
+            .containsExactly("USER_REGISTERED", "USER_VERIFIED")
     }
 
 }

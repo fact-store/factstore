@@ -1,10 +1,16 @@
 package com.cassisi.openeventstore.core.classic
 
 import com.apple.foundationdb.Database
+import com.apple.foundationdb.KeySelector
 import com.apple.foundationdb.MutationType
 import com.apple.foundationdb.directory.DirectoryLayer
 import com.apple.foundationdb.tuple.Tuple
 import com.apple.foundationdb.tuple.Versionstamp
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.isActive
 import java.time.Instant
 import java.util.*
 import kotlin.text.Charsets.UTF_8
@@ -217,6 +223,82 @@ class ClassicEventStore(
             events
         }
 
+    }
+
+    fun streamEvents(
+        batchSize: Int = 128,
+        pollDelayMs: Long = 250L
+    ): Flow<Event> = flow {
+        // Cursor over the global index (key = /global/{vs}/{idx}/{eventId})
+        var lastSeenKey: ByteArray? = null
+        val globalRange = globalEventPositionSubspace.range()
+
+        while (currentCoroutineContext().isActive) {
+            // 1) Read the next batch of global positions after the cursor
+            val batch = db.read { tr ->
+                val beginSel =
+                    if (lastSeenKey == null)
+                        KeySelector.firstGreaterOrEqual(globalRange.begin)
+                    else
+                        KeySelector.firstGreaterThan(lastSeenKey)
+
+                val endSel = KeySelector.firstGreaterOrEqual(globalRange.end)
+
+                tr.getRange(beginSel, endSel, batchSize).asList().get()
+            }
+
+            if (batch.isEmpty()) {
+                // Nothing new yet; avoid a hot loop
+                delay(pollDelayMs)
+                continue
+            }
+
+            // 2) Materialize Events for the batch (single read tx for efficiency)
+            val events = db.read { tr ->
+                batch.mapNotNull { kv ->
+                    val k = globalEventPositionSubspace.unpack(kv.key)
+                    val eventId = UUID.fromString(k.getString(2))
+
+                    val dataKey = eventDataSubspace.pack(Tuple.from(eventId.toString()))
+                    val eventData = tr[dataKey].join() ?: return@mapNotNull null
+
+                    val typeKey = eventTypeSubspace.pack(Tuple.from(eventId.toString()))
+                    val eventType = tr[typeKey].join() ?: return@mapNotNull null
+
+                    val subjectIdKey = subjectIdSubspace.pack(Tuple.from(eventId.toString()))
+                    val subjectId = tr[subjectIdKey].join() ?: return@mapNotNull null
+
+                    val subjectTypeKey = subjectTypeSubspace.pack(Tuple.from(eventId.toString()))
+                    val subjectType = tr[subjectTypeKey].join() ?: return@mapNotNull null
+
+                    val createdAtKey = createdAtSubspace.pack(Tuple.from(eventId.toString()))
+                    val millis = Tuple.fromBytes(tr[createdAtKey].join()).getLong(0)
+                    val createdAt = Instant.ofEpochMilli(millis)
+
+                    Event(
+                        id = eventId,
+                        subjectType = subjectType.toString(UTF_8),
+                        subjectId = subjectId.toString(UTF_8),
+                        type = eventType.toString(UTF_8),
+                        data = eventData,
+                        createdAt = createdAt,
+                    )
+                }
+            }
+
+            // 3) Advance the cursor and emit in order
+            for ((i, kv) in batch.withIndex()) {
+                lastSeenKey = kv.key
+                emit(events[i])
+            }
+        }
+    }
+
+    internal fun reset() {
+        db.run { tr ->
+            val range = root.range()
+            tr.clear(range.begin, range.end)
+        }
     }
 
     data class SubjectEvents(
