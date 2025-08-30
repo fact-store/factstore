@@ -16,6 +16,8 @@ val quarkusPlatformVersion: String by project
 
 val foundationDbVersion="7.3.67"
 val kotlinSerializationJsonVersion="1.9.0"
+val assertJVersion = "3.27.4"
+val coroutinesVersion = "1.10.2"
 
 dependencies {
     implementation(enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}"))
@@ -28,10 +30,11 @@ dependencies {
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:$kotlinSerializationJsonVersion")
 
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$coroutinesVersion")
 
     implementation("io.quarkus:quarkus-arc")
     testImplementation("io.quarkus:quarkus-junit5")
+    testImplementation("org.assertj:assertj-core:$assertJVersion")
 }
 
 group = "org.cassisi"
