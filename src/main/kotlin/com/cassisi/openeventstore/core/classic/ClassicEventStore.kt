@@ -28,6 +28,7 @@ const val GLOBAL_EVENT_POSITION = "global"
 const val CREATED_AT_INDEX = "created-at-index"
 const val EVENT_TYPE_INDEX = "event-type-index"
 const val SUBJECT_INDEX = "subjectIdx"
+const val ATTRIBUTE_INDEX = "attr-index"
 
 /**
  *
@@ -49,6 +50,7 @@ const val SUBJECT_INDEX = "subjectIdx"
  * /subject/{subjectId}/{versionstamp}/{index}/{eventId} = ∅
  * /type/{type}/{versionstamp}/{index}/{eventId} = ∅
  * /created-at-index/{createdAt}/{vs}/{index}/{eventId} = ∅
+ * /attr-index/{eventType}/{fieldName}/{fieldValue}/{vs}/{index}/{eventId} = ∅
  *
  */
 class ClassicEventStore(
@@ -70,6 +72,7 @@ class ClassicEventStore(
     private val createdAtIndexSubspace = root.subspace(Tuple.from(CREATED_AT_INDEX))
     private val eventTypeIndexSubspace = root.subspace(Tuple.from(EVENT_TYPE_INDEX))
     private val globalEventPositionSubspace = root.subspace(Tuple.from(GLOBAL_EVENT_POSITION))
+    private val attributeIndexSubspace = root.subspace(Tuple.from(ATTRIBUTE_INDEX))
 
 
     class ConcurrencyException : RuntimeException("Subject version mismatch")
