@@ -15,22 +15,22 @@ class MyDb(
 
     fun onStart(@Observes startupEvent: StartupEvent) {
         println("on startup...")
-        println(database)
-
-        println("executing first run...")
-        database.run { tr ->
-            println("inside run")
-             tr.set(Tuple.from("hello").pack(), Tuple.from("world").pack());
-            return@run
-        }
-
-        println("executing second run...")
-        val value: String = database.run { tr ->
-            val result = tr[Tuple.from("hello").pack()].join()
-            Tuple.fromBytes(result).getString(0)
-        }
-
-        println("Hello $value")
+//        println(database)
+//
+//        println("executing first run...")
+//        database.run { tr ->
+//            println("inside run")
+//             tr.set(Tuple.from("hello").pack(), Tuple.from("world").pack());
+//            return@run
+//        }
+//
+//        println("executing second run...")
+//        val value: String = database.run { tr ->
+//            val result = tr[Tuple.from("hello").pack()].join()
+//            Tuple.fromBytes(result).getString(0)
+//        }
+//
+//        println("Hello $value")
 
       //  database.close()
     }
