@@ -22,7 +22,7 @@ const val CREATED_AT_INDEX = "created-at-index"
 const val EVENT_TYPE_INDEX = "type-index"
 
 private val EMPTY_BYTE_ARRAY = ByteArray(0)
-private val DEFAULT_INDEX = 0
+private const val DEFAULT_INDEX = 0
 
 /**
  * A simple event/fact store implementation based on FoundationDB.
