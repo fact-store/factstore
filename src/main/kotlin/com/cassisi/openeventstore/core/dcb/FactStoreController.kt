@@ -11,13 +11,15 @@ class FactStoreController(
 ) {
 
     @POST
-    fun test() {
+    suspend fun test() {
         db.append(
-            Fact(
-                id = UUID.randomUUID(),
-                type = "TEST_TYPE",
-                payload = """ { "test": 123 } """,
-                createdAt = Instant.now(),
+            listOf(
+                Fact(
+                    id = UUID.randomUUID(),
+                    type = "TEST_TYPE",
+                    payload = """ { "test": 123 } """,
+                    createdAt = Instant.now(),
+                )
             )
         )
     }

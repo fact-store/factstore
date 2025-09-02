@@ -6,7 +6,9 @@ import com.apple.foundationdb.Transaction
 import com.apple.foundationdb.directory.DirectoryLayer
 import com.apple.foundationdb.tuple.Tuple
 import com.apple.foundationdb.tuple.Versionstamp
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.future.await
+import kotlinx.coroutines.future.future
 import java.time.Instant
 import java.util.*
 import java.util.concurrent.CompletableFuture
@@ -58,35 +60,42 @@ class FactStore(
     private val eventTypeIndexSubspace = root.subspace(Tuple.from(EVENT_TYPE_INDEX))
     private val createdAtIndexSubspace = root.subspace(Tuple.from(CREATED_AT_INDEX))
 
-    fun append(facts: List<Fact>): List<Fact> {
-        db.run { tr -> tr.store(facts) }
-        return facts
+
+    suspend fun append(fact: Fact): Unit = coroutineScope {
+        db.runAsync { tr ->
+            future {
+                tr.store(fact)
+            }
+        }.await()
     }
 
-    fun append(fact: Fact): Fact {
-        db.run { tr -> tr.store(fact) }
-        return fact
+    suspend fun append(facts: List<Fact>): Unit = coroutineScope {
+        db.runAsync { tr ->
+            future {
+                tr.store(facts)
+            }
+        }.await()
     }
 
-    private fun Transaction.store(facts: List<Fact>) {
+    private suspend fun Transaction.store(facts: List<Fact>) {
         facts.forEachIndexed { index, fact ->
             storeFactData(fact)
             storeIndexes(fact, index)
         }
     }
 
-    private fun Transaction.store(fact: Fact) {
+    private suspend fun Transaction.store(fact: Fact) {
         storeFactData(fact)
         storeIndexes(fact)
     }
 
-    private fun Transaction.storeFactData(fact: Fact) {
+    private suspend fun Transaction.storeFactData(fact: Fact) {
         val factId = fact.id // stable key (fact identifier)
         val factIdTuple = Tuple.from(factId)
 
         // idempotence/existence check
         val idKey = factIdSubspace.pack(factIdTuple)
-        check(this[idKey].join() == null) { "Fact with ID $factId already exists!" }
+        check(this[idKey].await() == null) { "Fact with ID $factId already exists!" }
 
         // store fact ID
         this[idKey] = EMPTY_BYTE_ARRAY
@@ -215,7 +224,6 @@ class FactStore(
             }
         }.await()
     }
-
 
 
     internal fun reset() {
