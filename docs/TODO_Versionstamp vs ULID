@@ -1,0 +1,4 @@
+To decide whether to use versionstamp or ULID for ordering
+
+Which one is more safe?
+What about DB migration purposes?
