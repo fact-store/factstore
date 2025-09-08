@@ -45,6 +45,8 @@ class FactStoreTest {
 
         val fact = Fact(
             id = id,
+            subjectType = "USER",
+            subjectId = "PETER",
             type = "USER_ONBOARDED",
             payload = payload,
             createdAt = createdAt
@@ -72,6 +74,8 @@ class FactStoreTest {
 
         val fact1 = Fact(
             id = UUID.randomUUID(),
+            subjectType = "USER",
+            subjectId = "ALICE",
             type = "USER_CREATED",
             payload = """{ "username": "Alice" }""",
             createdAt = now.minusSeconds(60) // 1 minute ago
@@ -79,6 +83,8 @@ class FactStoreTest {
 
         val fact2 = Fact(
             id = UUID.randomUUID(),
+            subjectType = "USER",
+            subjectId = "ALICE",
             type = "USER_UPDATED",
             payload = """{ "username": "Alice", "status": "active" }""",
             createdAt = now
@@ -86,6 +92,8 @@ class FactStoreTest {
 
         val fact3 = Fact(
             id = UUID.randomUUID(),
+            subjectType = "USER",
+            subjectId = "BOB",
             type = "USER_DELETED",
             payload = """{ "username": "Bob" }""",
             createdAt = now.plusSeconds(60) // 1 minute in the future

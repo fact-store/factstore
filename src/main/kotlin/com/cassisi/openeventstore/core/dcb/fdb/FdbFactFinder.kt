@@ -1,11 +1,10 @@
 package com.cassisi.openeventstore.core.dcb.fdb
 
+import com.apple.foundationdb.ReadTransaction
 import com.apple.foundationdb.tuple.Tuple
 import com.cassisi.openeventstore.core.dcb.Fact
 import com.cassisi.openeventstore.core.dcb.FactFinder
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.future.await
-import kotlinx.coroutines.future.future
 import java.time.Instant
 import java.util.*
 import java.util.concurrent.CompletableFuture
@@ -19,47 +18,65 @@ class FdbFactFinder(fdbFactStore: FdbFactStore) : FactFinder {
     private val factTypeSubspace = fdbFactStore.factTypeSubspace
     private val createdAtSubspace = fdbFactStore.createdAtSubspace
     private val factPayloadSubspace = fdbFactStore.factPayloadSubspace
+    private val subjectTypeSubspace = fdbFactStore.subjectTypeSubspace
+    private val subjectIdSubspace = fdbFactStore.subjectIdSubspace
 
     private val createdAtIndexSubspace = fdbFactStore.createdAtIndexSubspace
 
     override suspend fun findById(factId: UUID): Fact? {
         return db.readAsync { tr ->
-            val factIdTuple = Tuple.from(factId)
-            val factIdKey = factIdSubspace.pack(factIdTuple)
-
+            val factIdKey = factIdSubspace.pack(Tuple.from(factId))
             tr[factIdKey].thenCompose { exists ->
                 if (exists == null) {
                     CompletableFuture.completedFuture(null)
                 } else {
-                    val typeKey = factTypeSubspace.pack(factIdTuple)
-                    val createdAtKey = createdAtSubspace.pack(factIdTuple)
-                    val payloadKey = factPayloadSubspace.pack(factIdTuple)
-
-                    val typeFuture = tr[typeKey]
-                    val createdAtFuture = tr[createdAtKey]
-                    val payloadFuture = tr[payloadKey]
-
-                    CompletableFuture.allOf(typeFuture, createdAtFuture, payloadFuture).thenApply {
-                        val typeBytes = typeFuture.getNow(null) ?: return@thenApply null
-                        val createdAtBytes = createdAtFuture.getNow(null) ?: return@thenApply null
-                        val payloadBytes = payloadFuture.getNow(null) ?: return@thenApply null
-
-                        val createdAtTuple = Tuple.fromBytes(createdAtBytes)
-                        val createdAtInstant = Instant.ofEpochSecond(
-                            createdAtTuple.getLong(0),
-                            createdAtTuple.getLong(1)
-                        )
-
-                        Fact(
-                            id = factId,
-                            type = typeBytes.toString(UTF_8),
-                            payload = payloadBytes.toString(UTF_8),
-                            createdAt = createdAtInstant
-                        )
-                    }
+                    tr.loadFact(factId)
                 }
             }
         }.await()
+    }
+
+    private fun ReadTransaction.loadFact(factId: UUID): CompletableFuture<Fact?> {
+        val factIdTuple = Tuple.from(factId)
+        val typeKey = factTypeSubspace.pack(factIdTuple)
+        val createdAtKey = createdAtSubspace.pack(factIdTuple)
+        val payloadKey = factPayloadSubspace.pack(factIdTuple)
+        val subjectTypeKey = subjectTypeSubspace.pack(factIdTuple)
+        val subjectIdKey = subjectIdSubspace.pack(factIdTuple)
+
+        val typeFuture = this[typeKey]
+        val createdAtFuture = this[createdAtKey]
+        val payloadFuture = this[payloadKey]
+        val subjectTypeFuture = this[subjectTypeKey]
+        val subjectIdFuture = this[subjectIdKey]
+
+        return CompletableFuture.allOf(
+            typeFuture,
+            createdAtFuture,
+            payloadFuture,
+            subjectTypeFuture,
+            subjectIdFuture
+        ).thenApply {
+            val typeBytes = typeFuture.getNow(null) ?: return@thenApply null
+            val createdAtBytes = createdAtFuture.getNow(null) ?: return@thenApply null
+            val payloadBytes = payloadFuture.getNow(null) ?: return@thenApply null
+            val subjectTypeBytes = subjectTypeFuture.getNow(null) ?: return@thenApply null
+            val subjectIdBytes = subjectIdFuture.getNow(null) ?: return@thenApply null
+            val createdAtTuple = Tuple.fromBytes(createdAtBytes)
+            val createdAtInstant = Instant.ofEpochSecond(
+                createdAtTuple.getLong(0),
+                createdAtTuple.getLong(1)
+            )
+
+            Fact(
+                id = factId,
+                type = typeBytes.toString(UTF_8),
+                payload = payloadBytes.toString(UTF_8),
+                createdAt = createdAtInstant,
+                subjectType = subjectTypeBytes.toString(UTF_8),
+                subjectId = subjectIdBytes.toString(UTF_8)
+            )
+        }
     }
 
 
@@ -82,31 +99,7 @@ class FdbFactFinder(fdbFactStore: FdbFactStore) : FactFinder {
                 val factFutures: List<CompletableFuture<Fact?>> = kvs.map { kv ->
                     val tuple = createdAtIndexSubspace.unpack(kv.key)
                     val factId = tuple.getUUID(tuple.size() - 1)
-                    val factIdTuple = Tuple.from(factId)
-
-                    val typeFut = tr[factTypeSubspace.pack(factIdTuple)]
-                    val payloadFut = tr[factPayloadSubspace.pack(factIdTuple)]
-                    val createdAtFut = tr[createdAtSubspace.pack(factIdTuple)]
-
-                    // run all three futures in parallel
-                    CompletableFuture.allOf(typeFut, payloadFut, createdAtFut).thenApply {
-                        val typeBytes = typeFut.getNow(null) ?: return@thenApply null
-                        val payloadBytes = payloadFut.getNow(null) ?: return@thenApply null
-                        val createdAtBytes = createdAtFut.getNow(null) ?: return@thenApply null
-
-                        val createdAtTuple = Tuple.fromBytes(createdAtBytes)
-                        val createdAtInstant = Instant.ofEpochSecond(
-                            createdAtTuple.getLong(0),
-                            createdAtTuple.getLong(1)
-                        )
-
-                        Fact(
-                            id = factId,
-                            type = typeBytes.toString(UTF_8),
-                            payload = payloadBytes.toString(UTF_8),
-                            createdAt = createdAtInstant
-                        )
-                    }
+                    tr.loadFact(factId)
                 }
 
                 // wait for all facts to complete

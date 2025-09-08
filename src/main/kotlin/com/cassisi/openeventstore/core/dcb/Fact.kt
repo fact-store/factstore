@@ -7,5 +7,7 @@ data class Fact(
     val id: UUID,
     val type: String,
     val payload: String, // assume JSON
+    val subjectType: String,
+    val subjectId: String,
     val createdAt: Instant,
 )
