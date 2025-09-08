@@ -22,23 +22,7 @@ class FdbFactAppender(
 
             tr[idKey].thenApply { existing ->
                 check(existing == null) { "Fact with ID ${fact.id} already exists!" }
-
-                tr[idKey] = EMPTY_BYTE_ARRAY
-
-                val factIdTuple = Tuple.from(fact.id)
-
-                // type
-                tr[store.factTypeSubspace.pack(factIdTuple)] = fact.type.toByteArray(UTF_8)
-
-                // payload
-                tr[store.factPayloadSubspace.pack(factIdTuple)] = fact.payload.toByteArray(UTF_8)
-
-                // createdAt
-                tr[store.createdAtSubspace.pack(factIdTuple)] =
-                    Tuple.from(fact.createdAt.epochSecond, fact.createdAt.nano).pack()
-
-                // indexes
-                tr.storeIndexes(fact)
+                tr.store(fact)
             }
         }.await()
     }
@@ -54,21 +38,27 @@ class FdbFactAppender(
 
             CompletableFuture.allOf(*checks.toTypedArray()).thenApply {
                 facts.forEachIndexed { index, fact ->
-                    val factIdTuple = Tuple.from(fact.id)
-
-                    tr[store.factIdSubspace.pack(factIdTuple)] = EMPTY_BYTE_ARRAY
-                    tr[store.factTypeSubspace.pack(factIdTuple)] = fact.type.toByteArray(UTF_8)
-                    tr[store.factPayloadSubspace.pack(factIdTuple)] = fact.payload.toByteArray(UTF_8)
-                    tr[store.createdAtSubspace.pack(factIdTuple)] =
-                        Tuple.from(fact.createdAt.epochSecond, fact.createdAt.nano).pack()
-
-                    tr.storeIndexes(fact, index)
+                    tr.store(fact, index)
                 }
             }
         }.await()
     }
 
-    private fun Transaction.storeIndexes(fact: Fact, index: Int = DEFAULT_INDEX) {
+    private fun Transaction.store(fact: Fact, index: Int = DEFAULT_INDEX) {
+        storeFact(fact)
+        storeIndexes(fact, index)
+    }
+
+    private fun Transaction.storeFact(fact: Fact) {
+        val factIdTuple = Tuple.from(fact.id)
+
+        this[store.factIdSubspace.pack(factIdTuple)] = EMPTY_BYTE_ARRAY
+        this[store.factTypeSubspace.pack(factIdTuple)] = fact.type.toByteArray(UTF_8)
+        this[store.factPayloadSubspace.pack(factIdTuple)] = fact.payload.toByteArray(UTF_8)
+        this[store.createdAtSubspace.pack(factIdTuple)] = Tuple.from(fact.createdAt.epochSecond, fact.createdAt.nano).pack()
+    }
+
+    private fun Transaction.storeIndexes(fact: Fact, index: Int) {
         val factId = fact.id
 
         val globalPositionKey = store.globalFactPositionSubspace.packWithVersionstamp(
