@@ -150,4 +150,51 @@ class FactStoreTest {
         }.isNotNull()
     }
 
+    @Test
+    fun testMultipleFactsOptimisticAppend(): Unit = runBlocking {
+
+        val fact1Id = UUID.randomUUID()
+        val fact2Id = UUID.randomUUID()
+        val fact3Id = UUID.randomUUID()
+
+        val fact1 = Fact(
+            id = fact1Id,
+            subjectType = "USER",
+            subjectId = "ALICE",
+            type = "USER_CREATED",
+            payload = """{ "username": "Alice" }""",
+            createdAt = Instant.now()
+        )
+
+        val fact2 = Fact(
+            id = fact2Id,
+            subjectType = "USER",
+            subjectId = "BOB",
+            type = "USER_CREATED",
+            payload = """{ "username": "BOB" }""",
+            createdAt = Instant.now()
+        )
+
+        val fact3 = Fact(
+            id = fact3Id,
+            subjectType = "USER",
+            subjectId = "ALICE",
+            type = "USER_LOCKED",
+            payload = """{ "username": "Alice" }""",
+            createdAt = Instant.now()
+        )
+
+        val factsToAppend = listOf(fact1, fact2, fact3)
+
+        val appendCondition: Map<Pair<String, String>, UUID?> = mapOf(
+            Pair("USER", "ALICE") to null,
+            Pair("USER", "BOB") to null,
+        )
+        val batchCondition = MultiSubjectAppendCondition(
+            appendCondition
+        )
+        store.append(factsToAppend, batchCondition)
+
+    }
+
 }

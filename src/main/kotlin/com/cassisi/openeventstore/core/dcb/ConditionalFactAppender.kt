@@ -13,4 +13,15 @@ value class SubjectAppendCondition(
     val expectedLatestEventId: UUID?
 )
 
-interface ConditionalSubjectFactAppender : ConditionalFactAppender<SubjectAppendCondition>
+interface ConditionalSubjectFactAppender :
+    ConditionalFactAppender<SubjectAppendCondition>,
+    ConditionalBatchFactAppender
+
+
+data class MultiSubjectAppendCondition(
+    val expectedLastEventIds: Map<Pair<String, String>, UUID?> // Map<(subjectType, subjectId), expectedLastFactId>
+)
+
+interface ConditionalBatchFactAppender {
+    suspend fun append(facts: List<Fact>, preCondition: MultiSubjectAppendCondition)
+}

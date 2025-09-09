@@ -6,6 +6,7 @@ import com.apple.foundationdb.tuple.Tuple
 import com.apple.foundationdb.tuple.Versionstamp
 import com.cassisi.openeventstore.core.dcb.ConditionalSubjectFactAppender
 import com.cassisi.openeventstore.core.dcb.Fact
+import com.cassisi.openeventstore.core.dcb.MultiSubjectAppendCondition
 import com.cassisi.openeventstore.core.dcb.SubjectAppendCondition
 import kotlinx.coroutines.future.await
 import java.util.UUID
@@ -24,6 +25,28 @@ class ConditionalFdbFactAppender(
             tr.store(fact)
             CompletableFuture.completedFuture(null)
         }.await()
+    }
+
+    override suspend fun append(facts: List<Fact>, preCondition: MultiSubjectAppendCondition) {
+        db.runAsync { tr ->
+            tr.evaluatePreCondition(preCondition)
+
+            facts.forEachIndexed { index, fact ->
+                tr.store(fact, index)
+            }
+
+            CompletableFuture.completedFuture(null)
+        }.await()
+    }
+
+    private fun Transaction.evaluatePreCondition(preCondition: MultiSubjectAppendCondition) {
+        preCondition.expectedLastEventIds.forEach { (subjectKey, expectedId) ->
+            val (subjectType, subjectId) = subjectKey
+            val actualLastFactId = getLastFactId(subjectType, subjectId)
+            if (actualLastFactId != expectedId) {
+                throw IllegalStateException("PreCondition not met for subject ($subjectType, $subjectId): expected $expectedId but got $actualLastFactId")
+            }
+        }
     }
 
     private fun Transaction.evaluatePreCondition(fact: Fact, preCondition: SubjectAppendCondition) {
