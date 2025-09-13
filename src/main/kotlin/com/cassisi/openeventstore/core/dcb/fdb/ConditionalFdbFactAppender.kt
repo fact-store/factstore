@@ -63,10 +63,10 @@ class ConditionalFdbFactAppender(
 
     private fun Transaction.getLastFactId(subjectType: String, subjectId: String) : UUID? {
         val subjectIndexKeyBegin = Tuple.from(subjectType, subjectId)
-        val subjectRange = store.subjectTypeIndexSubspace.range(subjectIndexKeyBegin)
+        val subjectRange = store.subjectIndexSubspace.range(subjectIndexKeyBegin)
         val latestFactKeyValue = this.getRange(subjectRange, 1, true).firstOrNull()
         return latestFactKeyValue?.let {
-            val keyTuple = store.subjectTypeIndexSubspace.unpack(it.key)
+            val keyTuple = store.subjectIndexSubspace.unpack(it.key)
             keyTuple.getUUID(4)
         }
     }
@@ -109,7 +109,7 @@ class ConditionalFdbFactAppender(
         )
         mutate(SET_VERSIONSTAMPED_KEY, createdAtIndexKey, EMPTY_BYTE_ARRAY)
 
-        val subjectIndex = store.subjectTypeIndexSubspace.packWithVersionstamp(
+        val subjectIndex = store.subjectIndexSubspace.packWithVersionstamp(
             Tuple.from(fact.subjectType, fact.subjectId, Versionstamp.incomplete(), index, factId)
         )
         mutate(SET_VERSIONSTAMPED_KEY, subjectIndex, EMPTY_BYTE_ARRAY)
