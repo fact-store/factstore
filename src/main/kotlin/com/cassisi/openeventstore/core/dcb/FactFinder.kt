@@ -13,4 +13,20 @@ interface FactFinder {
 
     suspend fun findBySubject(subjectType: String, subjectId: String): List<Fact>
 
+    suspend fun findByPayloadAttribute(query: PayloadQuery): List<Fact>
+
 }
+
+data class PayloadAttributeCondition(
+    val eventType: String,
+    val path: String,
+    val value: String
+)
+
+data class PayloadQueryItem(
+    val conditions: List<PayloadAttributeCondition>
+)
+
+data class PayloadQuery(
+    val items: List<PayloadQueryItem>
+)

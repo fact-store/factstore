@@ -18,6 +18,7 @@ const val CREATED_AT_INDEX = "created-at-index"
 const val EVENT_TYPE_INDEX = "type-index"
 const val SUBJECT_INDEX = "subject-index"
 const val METADATA_INDEX = "metadata-index"
+const val PAYLOAD_ATTR_INDEX = "payload-attr-index"
 
 val EMPTY_BYTE_ARRAY = ByteArray(0)
 const val DEFAULT_INDEX = 0
@@ -40,6 +41,7 @@ const val DEFAULT_INDEX = 0
  *  /fact-store/created-at-index/{epochSecond}/{nano}/{vs}/{index}/{factId} = ∅
  *  /fact-store/subject-index/{subjectType}/{subjectId}/{versionstamp}/{index}/{factId} = ∅
  *  /fact-store/metadata-index/{key}/{value}/{versionstamp}/{index}/{factId} = ∅
+ *  /fact-store/payload-attr-index/{eventType}/{path}/{value}/{versionstamp}/{index}/{factId} = ∅
  *
  */
 class FdbFactStore(
@@ -65,5 +67,6 @@ class FdbFactStore(
     internal val createdAtIndexSubspace = root.subspace(Tuple.from(CREATED_AT_INDEX))
     internal val subjectIndexSubspace = root.subspace(Tuple.from(SUBJECT_INDEX))
     internal val metadataIndexSubspace = root.subspace(Tuple.from(METADATA_INDEX))
+    internal val payloadAttrIndexSubspace = root.subspace(Tuple.from(PAYLOAD_ATTR_INDEX))
 
 }

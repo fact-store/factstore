@@ -278,4 +278,90 @@ class FactStoreTest {
         assertThat(store.findById(fact2Id)).isEqualTo(fact2)
     }
 
+    @Test
+    fun testFindByPayloadAttribute(): Unit = runBlocking {
+        val fact1 = Fact(
+            id = UUID.randomUUID(),
+            subjectType = "USER",
+            subjectId = "ALICE",
+            type = "USER_CREATED",
+            payload = """{ "username": "Alice", "status": "active" }""",
+            createdAt = Instant.now()
+        )
+
+        val fact2 = Fact(
+            id = UUID.randomUUID(),
+            subjectType = "USER",
+            subjectId = "BOB",
+            type = "USER_CREATED",
+            payload = """{ "username": "Bob", "status": "inactive" }""",
+            createdAt = Instant.now()
+        )
+
+        val fact3 = Fact(
+            id = UUID.randomUUID(),
+            subjectType = "USER",
+            subjectId = "CHARLIE",
+            type = "USER_CREATED",
+            payload = """{ "username": "Charlie", "status": "active" }""",
+            createdAt = Instant.now()
+        )
+
+        store.append(listOf(fact1, fact2, fact3))
+
+        // --- Query 1: Find all USER_CREATED with status=active ---
+        val activeQuery = PayloadQuery(
+            items = listOf(
+                PayloadQueryItem(
+                    conditions = listOf(
+                        PayloadAttributeCondition(
+                            eventType = "USER_CREATED",
+                            path = "status",
+                            value = "active"
+                        )
+                    )
+                )
+            )
+        )
+
+        val activeFacts = store.findByPayloadAttribute(activeQuery)
+        assertThat(activeFacts).containsExactlyInAnyOrder(fact1, fact3)
+
+        // --- Query 2: Find all USER_CREATED with username=Bob ---
+        val bobQuery = PayloadQuery(
+            items = listOf(
+                PayloadQueryItem(
+                    conditions = listOf(
+                        PayloadAttributeCondition(
+                            eventType = "USER_CREATED",
+                            path = "username",
+                            value = "Bob"
+                        )
+                    )
+                )
+            )
+        )
+
+        val bobFacts = store.findByPayloadAttribute(bobQuery)
+        assertThat(bobFacts).containsExactly(fact2)
+
+        // --- Query 3: No matches ---
+        val noResultsQuery = PayloadQuery(
+            items = listOf(
+                PayloadQueryItem(
+                    conditions = listOf(
+                        PayloadAttributeCondition(
+                            eventType = "USER_CREATED",
+                            path = "username",
+                            value = "NonExistent"
+                        )
+                    )
+                )
+            )
+        )
+
+        val noFacts = store.findByPayloadAttribute(noResultsQuery)
+        assertThat(noFacts).isEmpty()
+    }
+
 }

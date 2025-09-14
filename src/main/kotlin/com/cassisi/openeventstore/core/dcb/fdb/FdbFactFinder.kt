@@ -4,6 +4,9 @@ import com.apple.foundationdb.ReadTransaction
 import com.apple.foundationdb.tuple.Tuple
 import com.cassisi.openeventstore.core.dcb.Fact
 import com.cassisi.openeventstore.core.dcb.FactFinder
+import com.cassisi.openeventstore.core.dcb.PayloadAttributeCondition
+import com.cassisi.openeventstore.core.dcb.PayloadQuery
+import com.cassisi.openeventstore.core.dcb.PayloadQueryItem
 import kotlinx.coroutines.future.await
 import java.time.Instant
 import java.util.*
@@ -24,6 +27,7 @@ class FdbFactFinder(fdbFactStore: FdbFactStore) : FactFinder {
 
     private val createdAtIndexSubspace = fdbFactStore.createdAtIndexSubspace
     private val subjectIndexSubspace = fdbFactStore.subjectIndexSubspace
+    private val payloadAttrIndexSubspace = fdbFactStore.payloadAttrIndexSubspace
 
     override suspend fun findById(factId: UUID): Fact? {
         return db.readAsync { tr ->
@@ -137,5 +141,47 @@ class FdbFactFinder(fdbFactStore: FdbFactStore) : FactFinder {
                 }
             }
         }.await()
+    }
+
+    override suspend fun findByPayloadAttribute(query: PayloadQuery): List<Fact> {
+        return db.readAsync { tr ->
+            val itemFutures = query.items.map { item ->
+                tr.queryPayloadItem(item)
+            }
+
+            CompletableFuture.allOf(*itemFutures.toTypedArray()).thenCompose {
+                val allFactIds = itemFutures
+                    .flatMap { it.getNow(emptySet()) }
+                    .toSet() // OR semantics
+
+                val loadFutures = allFactIds.map { tr.loadFact(it) }
+
+                CompletableFuture.allOf(*loadFutures.toTypedArray()).thenApply {
+                    loadFutures.mapNotNull { it.getNow(null) }
+                }
+            }
+        }.await()
+    }
+
+    private fun ReadTransaction.queryPayloadItem(item: PayloadQueryItem): CompletableFuture<Set<UUID>> {
+        val conditionFutures = item.conditions.map { cond ->
+            queryPayloadCondition(cond)
+        }
+
+        return CompletableFuture.allOf(*conditionFutures.toTypedArray()).thenApply {
+            conditionFutures
+                .map { it.getNow(emptySet()) }
+                .reduce { acc, s -> acc.intersect(s) } // AND semantics
+        }
+    }
+
+    private fun ReadTransaction.queryPayloadCondition(cond: PayloadAttributeCondition): CompletableFuture<Set<UUID>> {
+        val range = payloadAttrIndexSubspace.range(Tuple.from(cond.eventType, cond.path, cond.value))
+        return this.getRange(range).asList().thenApply { kvs ->
+            kvs.mapTo(mutableSetOf()) {
+                val tuple = payloadAttrIndexSubspace.unpack(it.key)
+                tuple.getUUID(tuple.size() - 1)
+            }
+        }
     }
 }

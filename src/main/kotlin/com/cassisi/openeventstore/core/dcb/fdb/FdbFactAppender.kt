@@ -7,6 +7,11 @@ import com.apple.foundationdb.tuple.Versionstamp
 import com.cassisi.openeventstore.core.dcb.Fact
 import com.cassisi.openeventstore.core.dcb.FactAppender
 import kotlinx.coroutines.future.await
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import java.util.concurrent.CompletableFuture
 import kotlin.text.Charsets.UTF_8
 
@@ -93,5 +98,45 @@ class FdbFactAppender(
             )
             mutate(SET_VERSIONSTAMPED_KEY, metadataEntryIndex, EMPTY_BYTE_ARRAY)
         }
+
+        storePayloadAttributeIndexes(fact, index)
     }
+    private fun Transaction.storePayloadAttributeIndexes(fact: Fact, index: Int) {
+        val payloadJson = Json.parseToJsonElement(fact.payload)
+        val flattened = flattenJson(payloadJson) // Map<String, String>
+
+        flattened.forEach { (path, value) ->
+            val key = store.payloadAttrIndexSubspace.packWithVersionstamp(
+                Tuple.from(fact.type, path, value, Versionstamp.incomplete(), index, fact.id)
+            )
+            mutate(SET_VERSIONSTAMPED_KEY, key, EMPTY_BYTE_ARRAY)
+        }
+    }
+
+    fun flattenJson(element: JsonElement, prefix: String = ""): Map<String, String> {
+        val result = mutableMapOf<String, String>()
+
+        when (element) {
+            is JsonObject -> {
+                for ((key, child) in element) {
+                    val path = if (prefix.isEmpty()) key else "$prefix.$key"
+                    result.putAll(flattenJson(child, path))
+                }
+            }
+
+            is JsonArray -> {
+                element.forEachIndexed { index, child ->
+                    val path = if (prefix.isEmpty()) index.toString() else "$prefix[$index]"
+                    result.putAll(flattenJson(child, path))
+                }
+            }
+
+            is JsonPrimitive -> {
+                result[prefix] = element.content
+            }
+        }
+
+        return result
+    }
+
 }
