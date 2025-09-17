@@ -18,8 +18,10 @@ class FactStoreController(
                 type = "TEST_TYPE",
                 payload = """ { "test": 123 } """,
                 createdAt = Instant.now(),
-                subjectType = "TEST",
-                subjectId = "123"
+                subject = Subject(
+                    type = "TEST",
+                    id = "123"
+                ),
             )
         )
 

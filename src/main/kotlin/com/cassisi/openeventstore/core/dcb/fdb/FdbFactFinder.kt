@@ -7,6 +7,7 @@ import com.cassisi.openeventstore.core.dcb.FactFinder
 import com.cassisi.openeventstore.core.dcb.PayloadAttributeCondition
 import com.cassisi.openeventstore.core.dcb.PayloadQuery
 import com.cassisi.openeventstore.core.dcb.PayloadQueryItem
+import com.cassisi.openeventstore.core.dcb.Subject
 import kotlinx.coroutines.future.await
 import java.time.Instant
 import java.util.*
@@ -88,8 +89,10 @@ class FdbFactFinder(fdbFactStore: FdbFactStore) : FactFinder {
                 type = typeBytes.toString(UTF_8),
                 payload = payloadBytes.toString(UTF_8),
                 createdAt = createdAtInstant,
-                subjectType = subjectTypeBytes.toString(UTF_8),
-                subjectId = subjectIdBytes.toString(UTF_8),
+                subject = Subject(
+                    type = subjectTypeBytes.toString(UTF_8),
+                    id = subjectIdBytes.toString(UTF_8)
+                ),
                 metadata = metadata
             )
         }

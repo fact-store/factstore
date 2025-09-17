@@ -50,8 +50,8 @@ class ConditionalFdbFactAppender(
     }
 
     private fun Transaction.evaluatePreCondition(fact: Fact, preCondition: SubjectAppendCondition) {
-        val subjectType = fact.subjectType
-        val subjectId = fact.subjectId
+        val subjectType = fact.subject.type
+        val subjectId = fact.subject.id
 
         val actualLastFactId = getLastFactId(subjectType, subjectId)
         val expectedLastFactId = preCondition.expectedLatestEventId
@@ -86,8 +86,8 @@ class ConditionalFdbFactAppender(
         this[store.factIdSubspace.pack(factIdTuple)] = EMPTY_BYTE_ARRAY
         this[store.factTypeSubspace.pack(factIdTuple)] = fact.type.toByteArray(UTF_8)
         this[store.factPayloadSubspace.pack(factIdTuple)] = fact.payload.toByteArray(UTF_8)
-        this[store.subjectTypeSubspace.pack(factIdTuple)] = fact.subjectType.toByteArray(UTF_8)
-        this[store.subjectIdSubspace.pack(factIdTuple)] = fact.subjectId.toByteArray(UTF_8)
+        this[store.subjectTypeSubspace.pack(factIdTuple)] = fact.subject.type.toByteArray(UTF_8)
+        this[store.subjectIdSubspace.pack(factIdTuple)] = fact.subject.id.toByteArray(UTF_8)
         this[store.createdAtSubspace.pack(factIdTuple)] = Tuple.from(fact.createdAt.epochSecond, fact.createdAt.nano).pack()
     }
 
@@ -110,7 +110,7 @@ class ConditionalFdbFactAppender(
         mutate(SET_VERSIONSTAMPED_KEY, createdAtIndexKey, EMPTY_BYTE_ARRAY)
 
         val subjectIndex = store.subjectIndexSubspace.packWithVersionstamp(
-            Tuple.from(fact.subjectType, fact.subjectId, Versionstamp.incomplete(), index, factId)
+            Tuple.from(fact.subject.type, fact.subject.id, Versionstamp.incomplete(), index, factId)
         )
         mutate(SET_VERSIONSTAMPED_KEY, subjectIndex, EMPTY_BYTE_ARRAY)
     }

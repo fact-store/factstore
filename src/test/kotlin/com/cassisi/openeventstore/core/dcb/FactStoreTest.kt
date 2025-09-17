@@ -44,8 +44,10 @@ class FactStoreTest {
 
         val fact = Fact(
             id = id,
-            subjectType = "USER",
-            subjectId = "PETER",
+            subject = Subject(
+                type = "USER",
+                id = "ALICE",
+            ),
             type = "USER_ONBOARDED",
             payload = payload,
             createdAt = createdAt
@@ -73,8 +75,10 @@ class FactStoreTest {
 
         val fact1 = Fact(
             id = UUID.randomUUID(),
-            subjectType = "USER",
-            subjectId = "ALICE",
+            subject = Subject(
+                type = "USER",
+                id = "ALICE",
+            ),
             type = "USER_CREATED",
             payload = """{ "username": "Alice" }""",
             createdAt = now.minusSeconds(60) // 1 minute ago
@@ -82,8 +86,10 @@ class FactStoreTest {
 
         val fact2 = Fact(
             id = UUID.randomUUID(),
-            subjectType = "USER",
-            subjectId = "ALICE",
+            subject = Subject(
+                type = "USER",
+                id = "ALICE",
+            ),
             type = "USER_UPDATED",
             payload = """{ "username": "Alice", "status": "active" }""",
             createdAt = now
@@ -91,8 +97,10 @@ class FactStoreTest {
 
         val fact3 = Fact(
             id = UUID.randomUUID(),
-            subjectType = "USER",
-            subjectId = "BOB",
+            subject = Subject(
+                type = "USER",
+                id = "BOB",
+            ),
             type = "USER_DELETED",
             payload = """{ "username": "Bob" }""",
             createdAt = now.plusSeconds(60) // 1 minute in the future
@@ -117,8 +125,10 @@ class FactStoreTest {
         val fact1Id = UUID.randomUUID()
         val fact1 = Fact(
             id = fact1Id,
-            subjectType = "USER",
-            subjectId = "ALICE",
+            subject = Subject(
+                type = "USER",
+                id = "ALICE",
+            ),
             type = "USER_CREATED",
             payload = """{ "username": "Alice" }""",
             createdAt = Instant.now()
@@ -133,8 +143,10 @@ class FactStoreTest {
         val fact2Id = UUID.randomUUID()
         val fact2 = Fact(
             id = fact2Id,
-            subjectType = "USER",
-            subjectId = "ALICE",
+            subject = Subject(
+                type = "USER",
+                id = "ALICE",
+            ),
             type = "USER_LOCKED",
             payload = """{ "username": "Alice" }""",
             createdAt = Instant.now()
@@ -159,8 +171,10 @@ class FactStoreTest {
 
         val fact1 = Fact(
             id = fact1Id,
-            subjectType = "USER",
-            subjectId = "ALICE",
+            subject = Subject(
+                type = "USER",
+                id = "ALICE",
+            ),
             type = "USER_CREATED",
             payload = """{ "username": "Alice" }""",
             createdAt = Instant.now()
@@ -168,8 +182,10 @@ class FactStoreTest {
 
         val fact2 = Fact(
             id = fact2Id,
-            subjectType = "USER",
-            subjectId = "BOB",
+            subject = Subject(
+                type = "USER",
+                id = "BOB",
+            ),
             type = "USER_CREATED",
             payload = """{ "username": "BOB" }""",
             createdAt = Instant.now()
@@ -177,8 +193,10 @@ class FactStoreTest {
 
         val fact3 = Fact(
             id = fact3Id,
-            subjectType = "USER",
-            subjectId = "ALICE",
+            subject = Subject(
+                type = "USER",
+                id = "ALICE",
+            ),
             type = "USER_LOCKED",
             payload = """{ "username": "Alice" }""",
             createdAt = Instant.now()
@@ -206,8 +224,10 @@ class FactStoreTest {
 
         val fact1 = Fact(
             id = fact1Id,
-            subjectType = "USER",
-            subjectId = "ALICE",
+            subject = Subject(
+                type = "USER",
+                id = "ALICE",
+            ),
             type = "USER_CREATED",
             payload = """{ "username": "Alice" }""",
             createdAt = Instant.now()
@@ -215,8 +235,10 @@ class FactStoreTest {
 
         val fact2 = Fact(
             id = fact2Id,
-            subjectType = "USER",
-            subjectId = "BOB",
+            subject = Subject(
+                type = "USER",
+                id = "BOB",
+            ),
             type = "USER_CREATED",
             payload = """{ "username": "BOB" }""",
             createdAt = Instant.now()
@@ -224,8 +246,10 @@ class FactStoreTest {
 
         val fact3 = Fact(
             id = fact3Id,
-            subjectType = "USER",
-            subjectId = "ALICE",
+            subject = Subject(
+                type = "USER",
+                id = "ALICE",
+            ),
             type = "USER_LOCKED",
             payload = """{ "username": "Alice" }""",
             createdAt = Instant.now()
@@ -253,8 +277,10 @@ class FactStoreTest {
 
         val fact1 = Fact(
             id = fact1Id,
-            subjectType = "USER",
-            subjectId = "ALICE",
+            subject = Subject(
+                type = "USER",
+                id = "ALICE",
+            ),
             type = "USER_CREATED",
             payload = """{ "username": "Alice" }""",
             createdAt = Instant.now(),
@@ -263,8 +289,10 @@ class FactStoreTest {
 
         val fact2 = Fact(
             id = fact2Id,
-            subjectType = "USER",
-            subjectId = "BOB",
+            subject = Subject(
+                type = "USER",
+                id = "BOB",
+            ),
             type = "USER_CREATED",
             payload = """{ "username": "BOB" }""",
             createdAt = Instant.now()
@@ -282,8 +310,10 @@ class FactStoreTest {
     fun testFindByPayloadAttribute(): Unit = runBlocking {
         val fact1 = Fact(
             id = UUID.randomUUID(),
-            subjectType = "USER",
-            subjectId = "ALICE",
+            subject = Subject(
+                type = "USER",
+                id = "ALICE",
+            ),
             type = "USER_CREATED",
             payload = """{ "username": "Alice", "status": "active" }""",
             createdAt = Instant.now()
@@ -291,8 +321,10 @@ class FactStoreTest {
 
         val fact2 = Fact(
             id = UUID.randomUUID(),
-            subjectType = "USER",
-            subjectId = "BOB",
+            subject = Subject(
+                type = "USER",
+                id = "BOB",
+            ),
             type = "USER_CREATED",
             payload = """{ "username": "Bob", "status": "inactive" }""",
             createdAt = Instant.now()
@@ -300,8 +332,10 @@ class FactStoreTest {
 
         val fact3 = Fact(
             id = UUID.randomUUID(),
-            subjectType = "USER",
-            subjectId = "CHARLIE",
+            subject = Subject(
+                type = "USER",
+                id = "CHARLIE",
+            ),
             type = "USER_CREATED",
             payload = """{ "username": "Charlie", "status": "active" }""",
             createdAt = Instant.now()
