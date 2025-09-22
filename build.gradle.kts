@@ -3,11 +3,15 @@ plugins {
     kotlin("plugin.allopen") version "2.2.0"
     kotlin("plugin.serialization") version "2.2.10"
     id("io.quarkus")
+    id("com.google.protobuf") version "0.9.5"
 }
 
 repositories {
     mavenCentral()
     mavenLocal()
+    maven {
+        url = uri("https://ossartifacts.jfrog.io/artifactory/fdb-record-layer/")
+    }
 }
 
 val quarkusPlatformGroupId: String by project
@@ -15,6 +19,7 @@ val quarkusPlatformArtifactId: String by project
 val quarkusPlatformVersion: String by project
 
 val foundationDbVersion="7.3.67"
+val recordLayerVersion = "2.8.110.0"
 val kotlinSerializationJsonVersion="1.9.0"
 val assertJVersion = "3.27.4"
 val coroutinesVersion = "1.10.2"
@@ -27,6 +32,7 @@ dependencies {
 
     // foundation db client
     implementation("org.foundationdb:fdb-java:${foundationDbVersion}")
+    implementation("org.foundationdb:fdb-record-layer-core-pb3:${recordLayerVersion}")
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:$kotlinSerializationJsonVersion")
 
@@ -62,3 +68,27 @@ kotlin {
         javaParameters = true
     }
 }
+
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:3.25.1"
+    }
+}
+
+
+sourceSets {
+    main {
+        java {
+            srcDir("src/main/generated/main/java")
+        }
+    }
+}
+
+//
+//protobuf {
+//    generatedFilesBaseDir = "${projectDir}/src/main/generated"
+//    protoc {
+//        art
+//        artifact 'com.google.protobuf:protoc:3.11.4'
+//    }
+//}
