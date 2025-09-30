@@ -25,10 +25,12 @@ class FdbFactFinder(fdbFactStore: FdbFactStore) : FactFinder {
     private val subjectTypeSubspace = fdbFactStore.subjectTypeSubspace
     private val subjectIdSubspace = fdbFactStore.subjectIdSubspace
     private val metadataSubspace = fdbFactStore.metadataSubspace
+    private val tagsSubspace = fdbFactStore.tagsSubspace
 
     private val createdAtIndexSubspace = fdbFactStore.createdAtIndexSubspace
     private val subjectIndexSubspace = fdbFactStore.subjectIndexSubspace
     private val payloadAttrIndexSubspace = fdbFactStore.payloadAttrIndexSubspace
+    private val tagsIndexSubspace = fdbFactStore.tagsIndexSubspace
 
     override suspend fun findById(factId: UUID): Fact? {
         return db.readAsync { tr ->
@@ -51,6 +53,7 @@ class FdbFactFinder(fdbFactStore: FdbFactStore) : FactFinder {
         val subjectTypeKey = subjectTypeSubspace.pack(factIdTuple)
         val subjectIdKey = subjectIdSubspace.pack(factIdTuple)
         val metadataKey = metadataSubspace.range(factIdTuple)
+        val tagsRange = tagsSubspace.range(factIdTuple)
 
         val typeFuture = this[typeKey]
         val createdAtFuture = this[createdAtKey]
@@ -58,6 +61,7 @@ class FdbFactFinder(fdbFactStore: FdbFactStore) : FactFinder {
         val subjectTypeFuture = this[subjectTypeKey]
         val subjectIdFuture = this[subjectIdKey]
         val metadataFuture = this.getRange(metadataKey).asList()
+        val tagsFuture = this.getRange(tagsRange).asList()
 
         return CompletableFuture.allOf(
             typeFuture,
@@ -65,7 +69,8 @@ class FdbFactFinder(fdbFactStore: FdbFactStore) : FactFinder {
             payloadFuture,
             subjectTypeFuture,
             subjectIdFuture,
-            metadataFuture
+            metadataFuture,
+            tagsFuture
         ).thenApply {
             val typeBytes = typeFuture.getNow(null) ?: return@thenApply null
             val createdAtBytes = createdAtFuture.getNow(null) ?: return@thenApply null
@@ -84,6 +89,13 @@ class FdbFactFinder(fdbFactStore: FdbFactStore) : FactFinder {
                 key to value
             }
 
+            val tags: Map<String, String> = tagsFuture.getNow(emptyList()).associate { kv ->
+                val tuple = Tuple.fromBytes(kv.key)
+                val key = tuple.getString(tuple.size() - 1) // /fact-store/tags/{factId}/{key}
+                val value = kv.value.toString(UTF_8)
+                key to value
+            }
+
             Fact(
                 id = factId,
                 type = typeBytes.toString(UTF_8),
@@ -93,7 +105,8 @@ class FdbFactFinder(fdbFactStore: FdbFactStore) : FactFinder {
                     type = subjectTypeBytes.toString(UTF_8),
                     id = subjectIdBytes.toString(UTF_8)
                 ),
-                metadata = metadata
+                metadata = metadata,
+                tags = tags,
             )
         }
     }
@@ -158,6 +171,35 @@ class FdbFactFinder(fdbFactStore: FdbFactStore) : FactFinder {
                     .toSet() // OR semantics
 
                 val loadFutures = allFactIds.map { tr.loadFact(it) }
+
+                CompletableFuture.allOf(*loadFutures.toTypedArray()).thenApply {
+                    loadFutures.mapNotNull { it.getNow(null) }
+                }
+            }
+        }.await()
+    }
+
+    override suspend fun findByTags(tags: List<Pair<String, String>>): List<Fact> {
+        if (tags.isEmpty()) return emptyList()
+        return db.readAsync { tr ->
+            // For each (key, value) pair, get matching factIds
+            val tagFutures: List<CompletableFuture<Set<UUID>>> = tags.map { (key, value) ->
+                val range = tagsIndexSubspace.range(Tuple.from(key, value))
+                tr.getRange(range).asList().thenApply { kvs ->
+                    kvs.mapTo(mutableSetOf()) { kv ->
+                        val tuple = tagsIndexSubspace.unpack(kv.key)
+                        tuple.getUUID(tuple.size() - 1)
+                    }
+                }
+            }
+
+            // Once all tag lookups finish, union them and load facts
+            CompletableFuture.allOf(*tagFutures.toTypedArray()).thenCompose {
+                val allFactIds: Set<UUID> = tagFutures
+                    .flatMap { it.getNow(emptySet()) }
+                    .toSet() // OR semantics = union
+
+                val loadFutures: List<CompletableFuture<Fact?>> = allFactIds.map { tr.loadFact(it) }
 
                 CompletableFuture.allOf(*loadFutures.toTypedArray()).thenApply {
                     loadFutures.mapNotNull { it.getNow(null) }

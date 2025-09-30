@@ -15,6 +15,8 @@ interface FactFinder {
 
     suspend fun findByPayloadAttribute(query: PayloadQuery): List<Fact>
 
+    suspend fun findByTags(tags: List<Pair<String, String>>): List<Fact>
+
 }
 
 data class PayloadAttributeCondition(

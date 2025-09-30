@@ -9,7 +9,8 @@ data class Fact(
     val payload: String, // assume JSON
     val subject: Subject,
     val createdAt: Instant,
-    val metadata: Map<String, String> = emptyMap()
+    val metadata: Map<String, String> = emptyMap(),
+    val tags: Map<String, String> = emptyMap(),
 )
 
 data class Subject(

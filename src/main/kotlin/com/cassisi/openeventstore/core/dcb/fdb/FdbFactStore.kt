@@ -12,6 +12,7 @@ const val FACT_SUBJECT_TYPE = "subject-type"
 const val FACT_SUBJECT_ID = "subject-id"
 const val CREATED_AT = "created-at"
 const val METADATA = "metadata"
+const val TAGS = "tags"
 
 const val GLOBAL_FACT_POSITION_INDEX = "global"
 const val CREATED_AT_INDEX = "created-at-index"
@@ -19,6 +20,8 @@ const val EVENT_TYPE_INDEX = "type-index"
 const val SUBJECT_INDEX = "subject-index"
 const val METADATA_INDEX = "metadata-index"
 const val PAYLOAD_ATTR_INDEX = "payload-attr-index"
+const val TAGS_INDEX = "tags-index"
+const val TAGS_TYPE_INDEX = "tags-type-index"
 
 val EMPTY_BYTE_ARRAY = ByteArray(0)
 const val DEFAULT_INDEX = 0
@@ -34,6 +37,7 @@ const val DEFAULT_INDEX = 0
  *  /fact-store/subject-id/{factId} = payload
  *  /fact-store/created-at/{factId} = timestamp in UTC
  *  /fact-store/metadata/{factId}/{key} = metadata value
+ *  /fact-store/tags/{factId}/{key} = value
  *
  * INDEX SPACES
  *  /fact-store/global/{versionstamp}/{index}/{factId} = ∅
@@ -42,6 +46,8 @@ const val DEFAULT_INDEX = 0
  *  /fact-store/subject-index/{subjectType}/{subjectId}/{versionstamp}/{index}/{factId} = ∅
  *  /fact-store/metadata-index/{key}/{value}/{versionstamp}/{index}/{factId} = ∅
  *  /fact-store/payload-attr-index/{eventType}/{path}/{value}/{versionstamp}/{index}/{factId} = ∅
+ *  /fact-store/tags-index/{key}/{value}/{versionstamp}/{index}/{factId} = ∅
+ *  /fact-store/tags-type-index/{type}/{key}/{value}/{versionstamp}/{index}/{factId} = ∅
  *
  */
 class FdbFactStore(
@@ -60,6 +66,7 @@ class FdbFactStore(
     internal val subjectIdSubspace = root.subspace(Tuple.from(FACT_SUBJECT_ID))
     internal val createdAtSubspace = root.subspace(Tuple.from(CREATED_AT))
     internal val metadataSubspace = root.subspace(Tuple.from(METADATA))
+    internal val tagsSubspace = root.subspace(Tuple.from(TAGS))
 
     // INDEX SPACES
     internal val globalFactPositionSubspace = root.subspace(Tuple.from(GLOBAL_FACT_POSITION_INDEX))
@@ -68,5 +75,7 @@ class FdbFactStore(
     internal val subjectIndexSubspace = root.subspace(Tuple.from(SUBJECT_INDEX))
     internal val metadataIndexSubspace = root.subspace(Tuple.from(METADATA_INDEX))
     internal val payloadAttrIndexSubspace = root.subspace(Tuple.from(PAYLOAD_ATTR_INDEX))
+    internal val tagsIndexSubspace = root.subspace(Tuple.from(TAGS_INDEX))
+    internal val tagsTypeIndexSubspace = root.subspace(Tuple.from(TAGS_TYPE_INDEX))
 
 }

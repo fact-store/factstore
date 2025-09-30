@@ -398,4 +398,72 @@ class FactStoreTest {
         assertThat(noFacts).isEmpty()
     }
 
+    @Test
+    fun appendEventsWithTagsAndFindThem(): Unit = runBlocking {
+        val fact1 = Fact(
+            id = UUID.randomUUID(),
+            subject = Subject(
+                type = "USER",
+                id = "ALICE",
+            ),
+            type = "USER_CREATED",
+            payload = """{ "username": "Alice" }""",
+            createdAt = Instant.now(),
+            metadata = emptyMap(),
+            tags = mapOf("role" to "admin", "region" to "eu")
+        )
+
+        val fact2 = Fact(
+            id = UUID.randomUUID(),
+            subject = Subject(
+                type = "USER",
+                id = "BOB",
+            ),
+            type = "USER_CREATED",
+            payload = """{ "username": "Bob" }""",
+            createdAt = Instant.now(),
+            metadata = emptyMap(),
+            tags = mapOf("role" to "user", "region" to "us")
+        )
+
+        val fact3 = Fact(
+            id = UUID.randomUUID(),
+            subject = Subject(
+                type = "USER",
+                id = "CHARLIE",
+            ),
+            type = "USER_CREATED",
+            payload = """{ "username": "Charlie" }""",
+            createdAt = Instant.now(),
+            metadata = emptyMap(),
+            tags = mapOf("role" to "admin", "region" to "us")
+        )
+
+        store.append(listOf(fact1, fact2, fact3))
+
+        // --- Query 1: Find all role=admin (OR semantics → fact1 + fact3)
+        val adminFacts = store.findByTags(listOf("role" to "admin"))
+        assertThat(adminFacts).containsExactlyInAnyOrder(fact1, fact3)
+
+        // --- Query 2: Find all region=us (OR semantics → fact2 + fact3)
+        val usFacts = store.findByTags(listOf("region" to "us"))
+        assertThat(usFacts).containsExactlyInAnyOrder(fact2, fact3)
+
+        // --- Query 3: Find all role=admin OR region=eu (OR semantics → fact1 + fact3)
+        val adminOrEuFacts = store.findByTags(listOf("role" to "admin", "region" to "eu"))
+        assertThat(adminOrEuFacts).containsExactlyInAnyOrder(fact1, fact3)
+
+        // --- Query 4: Non-existent tag → empty
+        val noFacts = store.findByTags(listOf("region" to "asia"))
+        assertThat(noFacts).isEmpty()
+
+        // --- Query 5: Union of all queries (just to validate coverage)
+
+        val fact1Loaded = store.findById(fact1.id)
+        println(fact1Loaded)
+
+        val allFacts = store.findByTags(listOf("role" to "admin", "role" to "user", "region" to "eu", "region" to "us"))
+        assertThat(allFacts).containsExactlyInAnyOrder(fact1, fact2, fact3)
+    }
+
 }

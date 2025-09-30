@@ -67,6 +67,10 @@ class FdbFactAppender(
         fact.metadata.forEach { (key, value) ->
             this[store.metadataSubspace.pack(factIdTuple.add(key))] = value.toByteArray(UTF_8)
         }
+
+        fact.tags.forEach { (key, value) ->
+            this[store.tagsSubspace.pack(factIdTuple.add(key))] = value.toByteArray(UTF_8)
+        }
     }
 
     private fun Transaction.storeIndexes(fact: Fact, index: Int) {
@@ -97,6 +101,18 @@ class FdbFactAppender(
                 Tuple.from(key, value, Versionstamp.incomplete(), index, factId)
             )
             mutate(SET_VERSIONSTAMPED_KEY, metadataEntryIndex, EMPTY_BYTE_ARRAY)
+        }
+
+        fact.tags.forEach { (key, value) ->
+            val tagsEntryIndex = store.tagsIndexSubspace.packWithVersionstamp(
+                Tuple.from(key, value, Versionstamp.incomplete(), index, factId)
+            )
+            mutate(SET_VERSIONSTAMPED_KEY, tagsEntryIndex, EMPTY_BYTE_ARRAY)
+
+            val tagTypeIndex = store.tagsTypeIndexSubspace.packWithVersionstamp(
+                Tuple.from(fact.type, key, value, Versionstamp.incomplete(), index, factId)
+            )
+            mutate(SET_VERSIONSTAMPED_KEY, tagTypeIndex, EMPTY_BYTE_ARRAY)
         }
 
         storePayloadAttributeIndexes(fact, index)
