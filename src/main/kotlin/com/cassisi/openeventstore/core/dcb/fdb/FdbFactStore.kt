@@ -11,6 +11,7 @@ const val FACT_PAYLOAD = "payload"
 const val FACT_SUBJECT_TYPE = "subject-type"
 const val FACT_SUBJECT_ID = "subject-id"
 const val CREATED_AT = "created-at"
+const val POSITION = "position"
 const val METADATA = "metadata"
 const val TAGS = "tags"
 
@@ -36,6 +37,7 @@ const val DEFAULT_INDEX = 0
  *  /fact-store/subject-type/{factId} = payload
  *  /fact-store/subject-id/{factId} = payload
  *  /fact-store/created-at/{factId} = timestamp in UTC
+ *  /fact-store/position/{factId} = versionstamp + index
  *  /fact-store/metadata/{factId}/{key} = metadata value
  *  /fact-store/tags/{factId}/{key} = value
  *
@@ -65,6 +67,7 @@ class FdbFactStore(
     internal val subjectTypeSubspace = root.subspace(Tuple.from(FACT_SUBJECT_TYPE))
     internal val subjectIdSubspace = root.subspace(Tuple.from(FACT_SUBJECT_ID))
     internal val createdAtSubspace = root.subspace(Tuple.from(CREATED_AT))
+    internal val positionSubspace = root.subspace(Tuple.from(POSITION))
     internal val metadataSubspace = root.subspace(Tuple.from(METADATA))
     internal val tagsSubspace = root.subspace(Tuple.from(TAGS))
 

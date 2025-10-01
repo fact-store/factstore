@@ -1,6 +1,7 @@
 package com.cassisi.openeventstore.core.dcb.fdb
 
 import com.apple.foundationdb.MutationType.SET_VERSIONSTAMPED_KEY
+import com.apple.foundationdb.MutationType.SET_VERSIONSTAMPED_VALUE
 import com.apple.foundationdb.Transaction
 import com.apple.foundationdb.tuple.Tuple
 import com.apple.foundationdb.tuple.Versionstamp
@@ -50,11 +51,11 @@ class FdbFactAppender(
     }
 
     private fun Transaction.store(fact: Fact, index: Int = DEFAULT_INDEX) {
-        storeFact(fact)
+        storeFact(fact, index)
         storeIndexes(fact, index)
     }
 
-    private fun Transaction.storeFact(fact: Fact) {
+    private fun Transaction.storeFact(fact: Fact, index: Int) {
         val factIdTuple = Tuple.from(fact.id)
 
         this[store.factIdSubspace.pack(factIdTuple)] = EMPTY_BYTE_ARRAY
@@ -63,6 +64,10 @@ class FdbFactAppender(
         this[store.subjectTypeSubspace.pack(factIdTuple)] = fact.subject.type.toByteArray(UTF_8)
         this[store.subjectIdSubspace.pack(factIdTuple)] = fact.subject.id.toByteArray(UTF_8)
         this[store.createdAtSubspace.pack(factIdTuple)] = Tuple.from(fact.createdAt.epochSecond, fact.createdAt.nano).pack()
+
+        val positionKey = store.positionSubspace.pack(factIdTuple)
+        val positionValue = Tuple.from(Versionstamp.incomplete(), index).packWithVersionstamp()
+        mutate(SET_VERSIONSTAMPED_VALUE, positionKey, positionValue)
 
         fact.metadata.forEach { (key, value) ->
             this[store.metadataSubspace.pack(factIdTuple.add(key))] = value.toByteArray(UTF_8)

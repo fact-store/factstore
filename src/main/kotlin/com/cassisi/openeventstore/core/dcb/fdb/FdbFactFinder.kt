@@ -21,6 +21,7 @@ class FdbFactFinder(fdbFactStore: FdbFactStore) : FactFinder {
     private val factIdSubspace = fdbFactStore.factIdSubspace
     private val factTypeSubspace = fdbFactStore.factTypeSubspace
     private val createdAtSubspace = fdbFactStore.createdAtSubspace
+    private val positionSubspace = fdbFactStore.positionSubspace
     private val factPayloadSubspace = fdbFactStore.factPayloadSubspace
     private val subjectTypeSubspace = fdbFactStore.subjectTypeSubspace
     private val subjectIdSubspace = fdbFactStore.subjectIdSubspace
@@ -42,13 +43,14 @@ class FdbFactFinder(fdbFactStore: FdbFactStore) : FactFinder {
                     tr.loadFact(factId)
                 }
             }
-        }.await()
+        }.await()?.fact
     }
 
-    private fun ReadTransaction.loadFact(factId: UUID): CompletableFuture<Fact?> {
+    private fun ReadTransaction.loadFact(factId: UUID): CompletableFuture<InternalFact?> {
         val factIdTuple = Tuple.from(factId)
         val typeKey = factTypeSubspace.pack(factIdTuple)
         val createdAtKey = createdAtSubspace.pack(factIdTuple)
+        val positionKey = positionSubspace.pack(factIdTuple)
         val payloadKey = factPayloadSubspace.pack(factIdTuple)
         val subjectTypeKey = subjectTypeSubspace.pack(factIdTuple)
         val subjectIdKey = subjectIdSubspace.pack(factIdTuple)
@@ -57,6 +59,7 @@ class FdbFactFinder(fdbFactStore: FdbFactStore) : FactFinder {
 
         val typeFuture = this[typeKey]
         val createdAtFuture = this[createdAtKey]
+        val positionKeyFuture = this[positionKey]
         val payloadFuture = this[payloadKey]
         val subjectTypeFuture = this[subjectTypeKey]
         val subjectIdFuture = this[subjectIdKey]
@@ -66,6 +69,7 @@ class FdbFactFinder(fdbFactStore: FdbFactStore) : FactFinder {
         return CompletableFuture.allOf(
             typeFuture,
             createdAtFuture,
+            positionKeyFuture,
             payloadFuture,
             subjectTypeFuture,
             subjectIdFuture,
@@ -82,6 +86,10 @@ class FdbFactFinder(fdbFactStore: FdbFactStore) : FactFinder {
                 createdAtTuple.getLong(0),
                 createdAtTuple.getLong(1)
             )
+
+            val positionBytes = positionKeyFuture.getNow(null) ?: return@thenApply null
+            val positionTuple = Tuple.fromBytes(positionBytes)
+
             val metadata: Map<String, String> = metadataFuture.getNow(emptyList()).associate { kv ->
                 val tuple = Tuple.fromBytes(kv.key)
                 val key = tuple.getString(3)
@@ -96,7 +104,7 @@ class FdbFactFinder(fdbFactStore: FdbFactStore) : FactFinder {
                 key to value
             }
 
-            Fact(
+            val fact = Fact(
                 id = factId,
                 type = typeBytes.toString(UTF_8),
                 payload = payloadBytes.toString(UTF_8),
@@ -107,6 +115,11 @@ class FdbFactFinder(fdbFactStore: FdbFactStore) : FactFinder {
                 ),
                 metadata = metadata,
                 tags = tags,
+            )
+
+            InternalFact(
+                fact = fact,
+                positionTuple = positionTuple
             )
         }
     }
@@ -128,7 +141,7 @@ class FdbFactFinder(fdbFactStore: FdbFactStore) : FactFinder {
             val endKey = createdAtIndexSubspace.pack(endTuple)
 
             tr.getRange(begin, endKey).asList().thenCompose { kvs ->
-                val factFutures: List<CompletableFuture<Fact?>> = kvs.map { kv ->
+                val factFutures: List<CompletableFuture<InternalFact?>> = kvs.map { kv ->
                     val tuple = createdAtIndexSubspace.unpack(kv.key)
                     val factId = tuple.getUUID(tuple.size() - 1)
                     tr.loadFact(factId)
@@ -136,7 +149,7 @@ class FdbFactFinder(fdbFactStore: FdbFactStore) : FactFinder {
 
                 // wait for all facts to complete
                 CompletableFuture.allOf(*factFutures.toTypedArray()).thenApply {
-                    factFutures.mapNotNull { it.getNow(null) }
+                    factFutures.mapNotNull { it.getNow(null)?.fact }
                 }
             }
         }.await()
@@ -146,14 +159,14 @@ class FdbFactFinder(fdbFactStore: FdbFactStore) : FactFinder {
         return db.readAsync { tr ->
             val subjectRange = subjectIndexSubspace.range(Tuple.from(subjectType, subjectId))
             tr.getRange(subjectRange).asList().thenCompose { kvs ->
-                val factFutures: List<CompletableFuture<Fact?>> = kvs.map { kv ->
+                val factFutures: List<CompletableFuture<InternalFact?>> = kvs.map { kv ->
                     val tuple = subjectIndexSubspace.unpack(kv.key)
                     val factId = tuple.getUUID(tuple.size() - 1)
                     tr.loadFact(factId)
                 }
 
                 CompletableFuture.allOf(*factFutures.toTypedArray()).thenApply {
-                    factFutures.mapNotNull { it.getNow(null) }
+                    factFutures.mapNotNull { it.getNow(null)?.fact }
                 }
             }
         }.await()
@@ -173,7 +186,10 @@ class FdbFactFinder(fdbFactStore: FdbFactStore) : FactFinder {
                 val loadFutures = allFactIds.map { tr.loadFact(it) }
 
                 CompletableFuture.allOf(*loadFutures.toTypedArray()).thenApply {
-                    loadFutures.mapNotNull { it.getNow(null) }
+                    loadFutures
+                        .mapNotNull { it.getNow(null) }
+                        .sortedBy { it.positionTuple }
+                        .map { it.fact }
                 }
             }
         }.await()
@@ -199,10 +215,13 @@ class FdbFactFinder(fdbFactStore: FdbFactStore) : FactFinder {
                     .flatMap { it.getNow(emptySet()) }
                     .toSet() // OR semantics = union
 
-                val loadFutures: List<CompletableFuture<Fact?>> = allFactIds.map { tr.loadFact(it) }
+                val loadFutures: List<CompletableFuture<InternalFact?>> = allFactIds.map { tr.loadFact(it) }
 
                 CompletableFuture.allOf(*loadFutures.toTypedArray()).thenApply {
-                    loadFutures.mapNotNull { it.getNow(null) }
+                    loadFutures
+                        .mapNotNull { it.getNow(null) }
+                        .sortedBy { it.positionTuple }
+                        .map { it.fact }
                 }
             }
         }.await()
@@ -230,3 +249,8 @@ class FdbFactFinder(fdbFactStore: FdbFactStore) : FactFinder {
         }
     }
 }
+
+data class InternalFact(
+    val fact: Fact,
+    val positionTuple: Tuple
+)

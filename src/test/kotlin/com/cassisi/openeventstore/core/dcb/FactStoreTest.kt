@@ -443,15 +443,15 @@ class FactStoreTest {
 
         // --- Query 1: Find all role=admin (OR semantics → fact1 + fact3)
         val adminFacts = store.findByTags(listOf("role" to "admin"))
-        assertThat(adminFacts).containsExactlyInAnyOrder(fact1, fact3)
+        assertThat(adminFacts).containsExactly(fact1, fact3)
 
         // --- Query 2: Find all region=us (OR semantics → fact2 + fact3)
         val usFacts = store.findByTags(listOf("region" to "us"))
-        assertThat(usFacts).containsExactlyInAnyOrder(fact2, fact3)
+        assertThat(usFacts).containsExactly(fact2, fact3)
 
         // --- Query 3: Find all role=admin OR region=eu (OR semantics → fact1 + fact3)
         val adminOrEuFacts = store.findByTags(listOf("role" to "admin", "region" to "eu"))
-        assertThat(adminOrEuFacts).containsExactlyInAnyOrder(fact1, fact3)
+        assertThat(adminOrEuFacts).containsExactly(fact1, fact3)
 
         // --- Query 4: Non-existent tag → empty
         val noFacts = store.findByTags(listOf("region" to "asia"))
@@ -463,7 +463,7 @@ class FactStoreTest {
         println(fact1Loaded)
 
         val allFacts = store.findByTags(listOf("role" to "admin", "role" to "user", "region" to "eu", "region" to "us"))
-        assertThat(allFacts).containsExactlyInAnyOrder(fact1, fact2, fact3)
+        assertThat(allFacts).containsExactly(fact1, fact2, fact3)
     }
 
 }
