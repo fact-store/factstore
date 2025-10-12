@@ -67,6 +67,8 @@ object FactRegistry {
     fun <T : Any> register(descriptor: FactDescriptor<T>) {
         byType[descriptor.type] = descriptor
         byClass[descriptor.clazz] = descriptor
+
+        // TODO: validate (check for missing annotations etc.)
     }
 
     fun fromEnvelope(fact: Fact): Any {

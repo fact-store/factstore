@@ -45,6 +45,7 @@ class AvroFactStoreTest {
 
         val avroStore = AvroFdbStore(store)
 
+        // TODO: avoid passing the type again here, rather extract from annotations!
         FactRegistry.register(createAvroFactDescriptor<UserOnboarded>("USER_ONBOARDED"))
         FactRegistry.register(createAvroFactDescriptor<UsernameChanged>("USERNAME_CHANGED"))
 
