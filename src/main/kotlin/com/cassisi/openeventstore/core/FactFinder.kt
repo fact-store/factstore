@@ -15,4 +15,6 @@ interface FactFinder {
 
     suspend fun findByTags(tags: List<Pair<String, String>>): List<Fact>
 
+    suspend fun findByTagQuery(query: TagQuery): List<Fact>
+
 }
