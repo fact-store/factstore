@@ -1,9 +1,12 @@
-package com.cassisi.openeventstore.core.dcb
+package com.cassisi.openeventstore
 
+import com.cassisi.openeventstore.core.Fact
+import com.cassisi.openeventstore.core.FactStore
+import com.cassisi.openeventstore.core.Subject
 import jakarta.ws.rs.POST
 import jakarta.ws.rs.Path
 import java.time.Instant
-import java.util.*
+import java.util.UUID
 
 @Path("/test")
 class FactStoreController(

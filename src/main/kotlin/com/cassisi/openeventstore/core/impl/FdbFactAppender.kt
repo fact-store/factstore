@@ -1,18 +1,13 @@
-package com.cassisi.openeventstore.core.dcb.fdb
+package com.cassisi.openeventstore.core.impl
 
 import com.apple.foundationdb.MutationType.SET_VERSIONSTAMPED_KEY
 import com.apple.foundationdb.MutationType.SET_VERSIONSTAMPED_VALUE
 import com.apple.foundationdb.Transaction
 import com.apple.foundationdb.tuple.Tuple
 import com.apple.foundationdb.tuple.Versionstamp
-import com.cassisi.openeventstore.core.dcb.Fact
-import com.cassisi.openeventstore.core.dcb.FactAppender
+import com.cassisi.openeventstore.core.Fact
+import com.cassisi.openeventstore.core.FactAppender
 import kotlinx.coroutines.future.await
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import java.util.concurrent.CompletableFuture
 import kotlin.text.Charsets.UTF_8
 

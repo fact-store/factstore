@@ -1,13 +1,13 @@
-package com.cassisi.openeventstore.core.dcb.fdb
+package com.cassisi.openeventstore.core.impl
 
 import com.apple.foundationdb.MutationType.SET_VERSIONSTAMPED_KEY
 import com.apple.foundationdb.Transaction
 import com.apple.foundationdb.tuple.Tuple
 import com.apple.foundationdb.tuple.Versionstamp
-import com.cassisi.openeventstore.core.dcb.ConditionalSubjectFactAppender
-import com.cassisi.openeventstore.core.dcb.Fact
-import com.cassisi.openeventstore.core.dcb.MultiSubjectAppendCondition
-import com.cassisi.openeventstore.core.dcb.SubjectAppendCondition
+import com.cassisi.openeventstore.core.ConditionalSubjectFactAppender
+import com.cassisi.openeventstore.core.Fact
+import com.cassisi.openeventstore.core.MultiSubjectAppendCondition
+import com.cassisi.openeventstore.core.SubjectAppendCondition
 import kotlinx.coroutines.future.await
 import java.util.UUID
 import java.util.concurrent.CompletableFuture

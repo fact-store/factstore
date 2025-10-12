@@ -1,5 +1,8 @@
-package com.cassisi.openeventstore.core.dcb
+package com.cassisi.openeventstore.avro
 
+import com.cassisi.openeventstore.core.Fact
+import com.cassisi.openeventstore.core.FactStore
+import com.cassisi.openeventstore.core.Subject
 import com.github.avrokotlin.avro4k.Avro
 import kotlinx.serialization.*
 import java.time.Instant
@@ -24,44 +27,6 @@ class AvroFdbStore(
             .map { FactRegistry.fromEnvelope(it) }
 
 }
-
-
-@Serializable
-@FactType("USER_ONBOARDED")
-@SubjectType("USER")
-data class UserOnboarded(
-    @SerialName("userId")
-    @Contextual
-    @SubjectId
-    val userId: UUID,
-
-    @SerialName("username")
-    @Tag("username")
-    val username: String,
-
-    @Contextual
-    @SerialName("onboardedAt")
-    val onboardedAt: Instant,
-)
-
-
-@Serializable
-@FactType("USERNAME_CHANGED")
-@SubjectType("USER")
-data class UsernameChanged(
-    @SerialName("userId")
-    @Contextual
-    @SubjectId
-    val userId: UUID,
-
-    @SerialName("username")
-    @Tag("username")
-    val username: String,
-
-    @Contextual
-    @SerialName("onboardedAt")
-    val onboardedAt: Instant,
-)
 
 @Retention(RUNTIME)
 @Target(CLASS)

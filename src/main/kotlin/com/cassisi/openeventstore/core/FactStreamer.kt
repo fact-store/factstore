@@ -1,4 +1,4 @@
-package com.cassisi.openeventstore.core.dcb
+package com.cassisi.openeventstore.core
 
 import kotlinx.coroutines.flow.Flow
 import java.util.UUID

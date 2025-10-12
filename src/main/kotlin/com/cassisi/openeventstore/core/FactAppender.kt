@@ -1,4 +1,4 @@
-package com.cassisi.openeventstore.core.dcb
+package com.cassisi.openeventstore.core
 
 interface FactAppender {
 

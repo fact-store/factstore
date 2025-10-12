@@ -1,4 +1,4 @@
-package com.cassisi.openeventstore.core.dcb
+package com.cassisi.openeventstore.core
 
 import java.time.Instant
 import java.util.*
@@ -16,17 +16,3 @@ interface FactFinder {
     suspend fun findByTags(tags: List<Pair<String, String>>): List<Fact>
 
 }
-
-data class PayloadAttributeCondition(
-    val eventType: String,
-    val path: String,
-    val value: String
-)
-
-data class PayloadQueryItem(
-    val conditions: List<PayloadAttributeCondition>
-)
-
-data class PayloadQuery(
-    val items: List<PayloadQueryItem>
-)

@@ -1,4 +1,6 @@
-package com.cassisi.openeventstore.core.dcb.fdb
+package com.cassisi.openeventstore.core
+
+import com.cassisi.openeventstore.core.impl.FdbFactStore
 
 class FdbFactStoreResetHelper(private val factStore: FdbFactStore) {
 

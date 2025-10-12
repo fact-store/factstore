@@ -1,9 +1,7 @@
-package com.cassisi.openeventstore.core.dcb
+package com.cassisi.openeventstore.core
 
 import com.apple.foundationdb.FDB
-import com.cassisi.openeventstore.core.dcb.fdb.*
-import com.github.avrokotlin.avro4k.Avro
-import com.github.avrokotlin.avro4k.schema
+import com.cassisi.openeventstore.core.impl.*
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.take
@@ -11,9 +9,6 @@ import kotlinx.coroutines.flow.timeout
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.decodeFromByteArray
-import kotlinx.serialization.encodeToByteArray
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeAll
@@ -386,56 +381,6 @@ class FactStoreTest {
         val allFacts = store.findByTags(listOf("role" to "admin", "role" to "user", "region" to "eu", "region" to "us"))
         assertThat(allFacts).containsExactly(fact1, fact2, fact3)
     }
-
-    @Test
-    fun storeAvroType(): Unit = runBlocking {
-        val objectToSerialize = SomethingHappened("Hello", 5)
-        val serializedObject = Avro.encodeToByteArray(objectToSerialize)
-        val deserializedObject = Avro.decodeFromByteArray<SomethingHappened>(serializedObject)
-
-        assertThat(deserializedObject).isEqualTo(objectToSerialize)
-
-        val schema = Avro.schema<SomethingHappened>()
-        println(schema)
-    }
-
-    @Test
-    fun testAvroFdbStore(): Unit = runBlocking {
-
-        val avroStore = AvroFdbStore(store)
-
-        FactRegistry.register(createAvroFactDescriptor<UserOnboarded>("USER_ONBOARDED"))
-        FactRegistry.register(createAvroFactDescriptor<UsernameChanged>("USERNAME_CHANGED"))
-
-
-        val userId = UUID.randomUUID()
-
-        avroStore.append(
-            UserOnboarded(
-                userId = userId,
-                username = "domenic",
-                onboardedAt = Instant.now()
-            )
-        )
-
-        avroStore.append(
-            UsernameChanged(
-                userId = userId,
-                username = "domenic2",
-                onboardedAt = Instant.now()
-            )
-        )
-
-        avroStore.readSubject("USER", userId.toString()).forEach {
-            println("${it!!::class.simpleName} $it")
-        }
-    }
-
-    @Serializable
-    data class SomethingHappened(
-        val text: String,
-        val number: Int
-    )
 
     @OptIn(FlowPreview::class)
     @Test

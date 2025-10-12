@@ -1,17 +1,14 @@
-package com.cassisi.openeventstore
+package com.cassisi.openeventstore.classic
 
 import com.apple.foundationdb.FDB
-import com.cassisi.openeventstore.core.classic.ClassicEventStore
-import com.cassisi.openeventstore.core.classic.ClassicEventStore.Event
-import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.take
-import kotlinx.coroutines.flow.toList
-import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.*
+import org.assertj.core.api.Assertions
+import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
 import java.time.Instant
-import java.util.*
+import java.util.UUID
 import java.util.concurrent.CompletionException
-import kotlin.text.Charsets.UTF_8
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ClassicEventStoreTest {
@@ -39,20 +36,20 @@ class ClassicEventStoreTest {
         val createdAt = Instant.now()
 
         val eventsToSave = listOf(
-            Event(
+            ClassicEventStore.Event(
                 id = eventId1,
                 subjectType = "USER",
                 subjectId = randomSubject,
                 type = "USER_ONBOARDED",
-                data = """{ "username": "test123" }""".toByteArray(UTF_8),
+                data = """{ "username": "test123" }""".toByteArray(Charsets.UTF_8),
                 createdAt = createdAt
             ),
-            Event(
+            ClassicEventStore.Event(
                 id = eventId2,
                 subjectType = "USER",
                 subjectId = randomSubject,
                 type = "USER_LOCKED",
-                data = """{ "locked": true }""".toByteArray(UTF_8),
+                data = """{ "locked": true }""".toByteArray(Charsets.UTF_8),
                 createdAt = createdAt
             )
         )
@@ -60,7 +57,7 @@ class ClassicEventStoreTest {
         store.appendWithExpectedVersion("USER", randomSubject, null, eventsToSave)
 
         val fetchedEvents = store.fetchEvents("USER", randomSubject).events
-        assertThat(fetchedEvents).containsAll(eventsToSave)
+        Assertions.assertThat(fetchedEvents).containsAll(eventsToSave)
     }
 
     @Test
@@ -84,11 +81,11 @@ class ClassicEventStoreTest {
         val afterFirst = store.fetchEvents("USER", subjectId)
         val v1 = afterFirst.lastVersion
         println("Version after first append: $v1")
-        assertThat(v1).isNotNull()
+        Assertions.assertThat(v1).isNotNull()
 
         // 2) Second append with correct expectedVersion
         val secondEvents = listOf(
-            Event(
+            ClassicEventStore.Event(
                 id = UUID.randomUUID(),
                 subjectType = "USER",
                 subjectId = subjectId,
@@ -103,12 +100,12 @@ class ClassicEventStoreTest {
         val afterSecond = store.fetchEvents("USER", subjectId)
         val v2 = afterSecond.lastVersion
         println("Version after second append: $v2")
-        assertThat(v2).isNotNull()
+        Assertions.assertThat(v2).isNotNull()
 
         // 3) Try stale write (still using v1, but store is already at v2)
         try {
             val staleEvents = listOf(
-                Event(
+                ClassicEventStore.Event(
                     id = UUID.randomUUID(),
                     subjectType = "USER",
                     subjectId = subjectId,

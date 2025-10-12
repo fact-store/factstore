@@ -2,12 +2,12 @@ package com.cassisi.openeventstore
 
 import com.apple.foundationdb.Database
 import com.apple.foundationdb.FDB
-import com.cassisi.openeventstore.core.dcb.FactStore
-import com.cassisi.openeventstore.core.dcb.fdb.ConditionalFdbFactAppender
-import com.cassisi.openeventstore.core.dcb.fdb.FdbFactAppender
-import com.cassisi.openeventstore.core.dcb.fdb.FdbFactFinder
-import com.cassisi.openeventstore.core.dcb.fdb.FdbFactStore
-import com.cassisi.openeventstore.core.dcb.fdb.FdbFactStreamer
+import com.cassisi.openeventstore.core.FactStore
+import com.cassisi.openeventstore.core.impl.ConditionalFdbFactAppender
+import com.cassisi.openeventstore.core.impl.FdbFactAppender
+import com.cassisi.openeventstore.core.impl.FdbFactFinder
+import com.cassisi.openeventstore.core.impl.FdbFactStore
+import com.cassisi.openeventstore.core.impl.FdbFactStreamer
 import jakarta.enterprise.context.ApplicationScoped
 import jakarta.enterprise.inject.Produces
 

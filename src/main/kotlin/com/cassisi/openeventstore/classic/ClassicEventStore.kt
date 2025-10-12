@@ -1,4 +1,4 @@
-package com.cassisi.openeventstore.core.classic
+package com.cassisi.openeventstore.classic
 
 import com.apple.foundationdb.Database
 import com.apple.foundationdb.KeySelector
