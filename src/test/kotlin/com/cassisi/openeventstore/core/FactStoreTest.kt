@@ -2,8 +2,6 @@ package com.cassisi.openeventstore.core
 
 import com.apple.foundationdb.Database
 import com.apple.foundationdb.FDB
-import com.apple.foundationdb.KeySelector
-import com.apple.foundationdb.tuple.Tuple
 import com.cassisi.openeventstore.core.impl.*
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
@@ -510,7 +508,7 @@ class FactStoreTest {
         // Test 1: Query with a single tag (username = "bob")
         val bobQuery = TagQuery(
             queryItems = listOf(
-                FactQueryItem(
+                TagTypeItem(
                     types = listOf("USER_CREATED"),
                     tags = listOf("username" to "bob")
                 )
@@ -523,7 +521,7 @@ class FactStoreTest {
         // Test 2: Query with multiple tags (AND condition: username = "bob" and region = "us")
         val multipleTagsQuery = TagQuery(
             queryItems = listOf(
-                FactQueryItem(
+                TagTypeItem(
                     types = listOf("USER_CREATED"),
                     tags = listOf("username" to "bob", "region" to "us")
                 )
@@ -536,7 +534,7 @@ class FactStoreTest {
         // Test 3: Query with multiple tags but one does not match (username = "bob" and region = "eu")
         val noMatchQuery = TagQuery(
             queryItems = listOf(
-                FactQueryItem(
+                TagTypeItem(
                     types = listOf("USER_CREATED"),
                     tags = listOf("username" to "bob", "region" to "eu")
                 )
@@ -549,7 +547,7 @@ class FactStoreTest {
         // Test 4: Query with multiple types (USER_CREATED or USER_DELETED)
         val multipleTypesQuery = TagQuery(
             queryItems = listOf(
-                FactQueryItem(
+                TagTypeItem(
                     types = listOf("USER_CREATED", "USER_DELETED"),
                     tags = listOf("username" to "bob")
                 )
@@ -562,7 +560,7 @@ class FactStoreTest {
         // Test 5: Query with multiple tags and multiple types (AND for tags, OR for types)
         val complexQuery = TagQuery(
             queryItems = listOf(
-                FactQueryItem(
+                TagTypeItem(
                     types = listOf("USER_CREATED", "USER_DELETED"),
                     tags = listOf("username" to "bob", "region" to "us")
                 )
@@ -575,7 +573,7 @@ class FactStoreTest {
         // Test 6: Query with tags but no matching facts (tags = "username" to "dave")
         val noMatchingTagQuery = TagQuery(
             queryItems = listOf(
-                FactQueryItem(
+                TagTypeItem(
                     types = listOf("USER_CREATED"),
                     tags = listOf("username" to "dave")
                 )
@@ -588,7 +586,7 @@ class FactStoreTest {
         // Test 7: Query with types but no matching facts (types = "USER_DELETED" but no such facts exist)
         val noMatchingTypeQuery = TagQuery(
             queryItems = listOf(
-                FactQueryItem(
+                TagTypeItem(
                     types = listOf("USER_DELETED"),
                     tags = listOf("username" to "bob")
                 )
@@ -601,7 +599,7 @@ class FactStoreTest {
         // Test 8: Query with tags but no facts that have these tags
         val tagsNoFactsQuery = TagQuery(
             queryItems = listOf(
-                FactQueryItem(
+                TagTypeItem(
                     types = listOf("USER_CREATED"),
                     tags = listOf("username" to "david", "region" to "asia")
                 )
@@ -614,7 +612,7 @@ class FactStoreTest {
         // Test 9: Query for facts with different tags
         val differentTagsQuery = TagQuery(
             queryItems = listOf(
-                FactQueryItem(
+                TagTypeItem(
                     types = listOf("USER_CREATED"),
                     tags = listOf("username" to "charlie", "region" to "us")
                 )
@@ -664,7 +662,7 @@ class FactStoreTest {
         // Query for facts with types "USER_CREATED" or "USER_UPDATED" and with tags "username" = "alice"
         val query = TagQuery(
             queryItems = listOf(
-                FactQueryItem(
+                TagTypeItem(
                     types = listOf("USER_CREATED", "USER_UPDATED"),
                     tags = listOf("username" to "alice")
                 )
@@ -715,11 +713,11 @@ class FactStoreTest {
         // Query for facts with type "USER_CREATED" or "USER_UPDATED", tagged with "username" = "bob"
         val query = TagQuery(
             queryItems = listOf(
-                FactQueryItem(
+                TagTypeItem(
                     types = listOf("USER_CREATED", "USER_UPDATED"),
                     tags = listOf("username" to "bob")
                 ),
-                FactQueryItem(
+                TagTypeItem(
                     types = listOf("USER_CREATED"),
                     tags = listOf("region" to "us")
                 )
@@ -771,11 +769,11 @@ class FactStoreTest {
         // Query with multiple query items
         val query = TagQuery(
             queryItems = listOf(
-                FactQueryItem(
+                TagTypeItem(
                     types = listOf("USER_CREATED", "USER_UPDATED"),
                     tags = listOf("username" to "bob", "region" to "us")
                 ),
-                FactQueryItem(
+                TagTypeItem(
                     types = listOf("USER_CREATED"),
                     tags = listOf("region" to "eu", "username" to "alice")
                 )
@@ -807,7 +805,7 @@ class FactStoreTest {
         // Query for facts with a non-matching type and tag
         val query = TagQuery(
             queryItems = listOf(
-                FactQueryItem(
+                TagTypeItem(
                     types = listOf("USER_UPDATED"),
                     tags = listOf("username" to "bob")
                 )
@@ -818,47 +816,6 @@ class FactStoreTest {
 
         // Expecting no facts because no fact matches the query
         assertThat(result).isEmpty()
-    }
-
-    @Test
-    fun testQueryMatchingOnlyTypes(): Unit = runBlocking {
-        // Create facts with different types and tags
-        val fact1 = Fact(
-            id = UUID.randomUUID(),
-            subject = Subject(type = "USER", id = "ALICE"),
-            type = "USER_CREATED",
-            payload = """{ "username": "Alice" }""".toByteArray(),
-            createdAt = Instant.now(),
-            metadata = emptyMap(),
-            tags = mapOf("username" to "alice", "region" to "eu")
-        )
-
-        val fact2 = Fact(
-            id = UUID.randomUUID(),
-            subject = Subject(type = "USER", id = "BOB"),
-            type = "USER_UPDATED",
-            payload = """{ "username": "Bob" }""".toByteArray(),
-            createdAt = Instant.now(),
-            metadata = emptyMap(),
-            tags = mapOf("username" to "bob", "region" to "us")
-        )
-
-        store.append(listOf(fact1, fact2))
-
-        // Query for facts of type "USER_UPDATED"
-        val query = TagQuery(
-            queryItems = listOf(
-                FactQueryItem(
-                    types = listOf("USER_UPDATED"),
-                    tags = emptyList()  // No tags
-                )
-            )
-        )
-
-        val result = store.findByTagQuery(query)
-
-        // Expecting fact2 (type = "USER_UPDATED")
-        assertThat(result).containsExactly(fact2)
     }
 
     @Test
@@ -914,7 +871,7 @@ class FactStoreTest {
         // Step 2: Query for only a handful of the events (e.g., 100 events with tag "user" and region "us")
         val query = TagQuery(
             queryItems = listOf(
-                FactQueryItem(
+                TagTypeItem(
                     types = listOf("USER_CREATED"),
                     tags = listOf("role" to "user", "region" to "us")
                 )
@@ -932,7 +889,7 @@ class FactStoreTest {
             store.findByTagQuery(
                 TagQuery(
                     listOf(
-                        FactQueryItem(
+                        TagTypeItem(
                             types = listOf("USER_CREATED"),
                             tags = listOf("role" to "custom")
                         )
@@ -975,7 +932,7 @@ class FactStoreTest {
 
         val tagQuery = TagQuery(
             queryItems = listOf(
-                FactQueryItem(
+                TagTypeItem(
                     types = listOf("USER_CREATED"),
                     tags = listOf("user" to "ALICE"),
                 )
@@ -1054,7 +1011,7 @@ class FactStoreTest {
 
         val tagQuery2 = TagQuery(
             queryItems = listOf(
-                FactQueryItem(
+                TagTypeItem(
                     types = listOf("USER_CREATED"),
                     tags = listOf("user" to "BOB"),
                 )

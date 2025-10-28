@@ -1,7 +1,7 @@
 package com.cassisi.openeventstore
 
 import com.cassisi.openeventstore.core.Fact
-import com.cassisi.openeventstore.core.FactQueryItem
+import com.cassisi.openeventstore.core.TagTypeItem
 import com.cassisi.openeventstore.core.FactStore
 import com.cassisi.openeventstore.core.Subject
 import com.cassisi.openeventstore.core.TagQuery
@@ -38,7 +38,7 @@ class FactStoreController(
             condition = TagQueryBasedAppendCondition(
                 failIfEventsMatch = TagQuery(
                     queryItems = listOf(
-                        FactQueryItem(
+                        TagTypeItem(
                             types = listOf("TEST_TYPE"),
                             tags = listOf("TEST" to "$id")
                         )
@@ -52,7 +52,7 @@ class FactStoreController(
 
     val query = TagQuery(
         listOf(
-            FactQueryItem(
+            TagTypeItem(
                 types = listOf("USER_CREATED"),
                 tags = listOf("role" to "custom")
             )

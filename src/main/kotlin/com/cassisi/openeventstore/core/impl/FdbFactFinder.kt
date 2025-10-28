@@ -4,8 +4,10 @@ import com.apple.foundationdb.ReadTransaction
 import com.apple.foundationdb.tuple.Tuple
 import com.cassisi.openeventstore.core.Fact
 import com.cassisi.openeventstore.core.FactFinder
-import com.cassisi.openeventstore.core.FactQueryItem
+import com.cassisi.openeventstore.core.TagOnlyQueryItem
+import com.cassisi.openeventstore.core.TagTypeItem
 import com.cassisi.openeventstore.core.TagQuery
+import com.cassisi.openeventstore.core.TagQueryItem
 import kotlinx.coroutines.future.await
 import java.time.Instant
 import java.util.*
@@ -21,7 +23,6 @@ class FdbFactFinder(private val fdbFactStore: FdbFactStore) : FactFinder {
     private val subjectIndexSubspace = fdbFactStore.subjectIndexSubspace
     private val tagsIndexSubspace = fdbFactStore.tagsIndexSubspace
     private val tagsTypeIndexSubspace = fdbFactStore.tagsTypeIndexSubspace
-    private val typesIndexSubspace = fdbFactStore.eventTypeIndexSubspace
 
     override suspend fun findById(factId: UUID): Fact? {
         return db.readAsync { tr ->
@@ -119,7 +120,6 @@ class FdbFactFinder(private val fdbFactStore: FdbFactStore) : FactFinder {
     }
 
     override suspend fun findByTagQuery(query: TagQuery): List<Fact> {
-
         return db.readAsync { tr ->
             val snapshot = tr.snapshot()
             val queryItemFutures = query.queryItems
@@ -145,84 +145,60 @@ class FdbFactFinder(private val fdbFactStore: FdbFactStore) : FactFinder {
         }.await()
     }
 
-    private fun FactQueryItem.resolveFactIds(tr: ReadTransaction): CompletableFuture<Set<UUID>> {
-        val hasTags = this.tags.isNotEmpty()
-        val hasTypes = this.types.isNotEmpty()
+    private fun TagQueryItem.resolveFactIds(tr: ReadTransaction): CompletableFuture<Set<UUID>> = when(this) {
+        is TagTypeItem -> resolveFactIds(tr)
+        is TagOnlyQueryItem -> resolveFactIds(tr)
+    }
 
-        return when {
-            hasTags && hasTypes -> {
-                // use composite "type+tag" index
-                val futures: List<CompletableFuture<Set<UUID>>> = types.map { type ->
-                    val tagFutures = tags.map { tag ->
-                        val range = tagsTypeIndexSubspace.range(Tuple.from(type, tag.first, tag.second))
-                        tr.getRange(range).asList().thenApply { keyValues ->
-                            keyValues.map {
-                                val tuple = tagsTypeIndexSubspace.unpack(it.key)
-                                tuple.getUUID(tuple.size() - 1)
-                            }.toSet()
-                        }
-                    }
+    private fun TagOnlyQueryItem.resolveFactIds(tr: ReadTransaction): CompletableFuture<Set<UUID>> {
+        val futures: List<CompletableFuture<Set<UUID>>> = tags.map { tag ->
+            val range = tagsIndexSubspace.range(Tuple.from(tag.first, tag.second))
+            tr.getRange(range).asList().thenApply { keyValues ->
+                keyValues.map {
+                    val tuple = tagsIndexSubspace.unpack(it.key)
+                    tuple.getUUID(tuple.size() - 1)
+                }.toSet() // Convert to a Set to easily combine results
+            }
+        }
+        // After all futures complete, perform the union of the sets
+        return CompletableFuture.allOf(*futures.toTypedArray()).thenApply {
+            // Union the sets from all futures
+            futures
+                .map { it.getNow(emptySet()) } // Extract the result of each CompletableFuture
+                .reduce { acc, set -> acc.union(set) } // Union all sets to get all matching fact IDs
+                .orEmpty() // Return empty set if no sets are present
+        }
+    }
 
-                    // we want to logically "AND" the result of the tag queries
-                    CompletableFuture.allOf(*tagFutures.toTypedArray()).thenApply {
-                        tagFutures
-                            .map { it.getNow(emptySet()) } // Extract the result of each CompletableFuture
-                            .reduce { acc, set -> acc.intersect(set) } // Reduce by intersecting each set
-                            .orEmpty() // If there are no sets to intersect, return an empty set
-                    }
-                }
-
-                // we finally union the found UUIDs
-                CompletableFuture.allOf(*futures.toTypedArray()).thenApply {
-                    futures
-                        .map { it.getNow(emptySet()) }
-                        .reduce { acc, set -> acc.union(set)  }
-                        .orEmpty()
+    private fun TagTypeItem.resolveFactIds(tr: ReadTransaction): CompletableFuture<Set<UUID>> {
+        // use composite "type+tag" index
+        val futures: List<CompletableFuture<Set<UUID>>> = types.map { type ->
+            val tagFutures = tags.map { tag ->
+                val range = tagsTypeIndexSubspace.range(Tuple.from(type, tag.first, tag.second))
+                tr.getRange(range).asList().thenApply { keyValues ->
+                    keyValues.map {
+                        val tuple = tagsTypeIndexSubspace.unpack(it.key)
+                        tuple.getUUID(tuple.size() - 1)
+                    }.toSet()
                 }
             }
 
-            hasTags -> {
-                val futures: List<CompletableFuture<Set<UUID>>> = tags.map { tag ->
-                    val range = tagsIndexSubspace.range(Tuple.from(tag.first, tag.second))
-                    tr.getRange(range).asList().thenApply { keyValues ->
-                        keyValues.map {
-                            val tuple = tagsIndexSubspace.unpack(it.key)
-                            tuple.getUUID(tuple.size() - 1)
-                        }.toSet() // Convert to a Set to easily combine results
-                    }
-                }
-                // After all futures complete, perform the union of the sets
-                CompletableFuture.allOf(*futures.toTypedArray()).thenApply {
-                    // Union the sets from all futures
-                    futures
-                        .map { it.getNow(emptySet()) } // Extract the result of each CompletableFuture
-                        .reduce { acc, set -> acc.union(set) } // Union all sets to get all matching fact IDs
-                        .orEmpty() // Return empty set if no sets are present
-                }
+            // we want to logically "AND" the result of the tag queries
+            CompletableFuture.allOf(*tagFutures.toTypedArray()).thenApply {
+                tagFutures
+                    .map { it.getNow(emptySet()) } // Extract the result of each CompletableFuture
+                    .reduce { acc, set -> acc.intersect(set) } // Reduce by intersecting each set
+                    .orEmpty() // If there are no sets to intersect, return an empty set
             }
-
-            hasTypes -> {
-                val futures: List<CompletableFuture<Set<UUID>>> = types.map { type ->
-                    val range = typesIndexSubspace.range(Tuple.from(type))
-                    tr.getRange(range).asList().thenApply { keyValues ->
-                        keyValues.map {
-                            val tuple = typesIndexSubspace.unpack(it.key)
-                            tuple.getUUID(tuple.size() - 1)
-                        }.toSet() // Convert to a Set to easily combine results
-                    }
-                }
-                // After all futures complete, perform the union of the sets
-                CompletableFuture.allOf(*futures.toTypedArray()).thenApply {
-                    futures
-                        .map { it.getNow(emptySet()) } // Extract the result of each CompletableFuture
-                        .reduce { acc, set -> acc.union(set) } // Union all sets to get all matching fact IDs
-                        .orEmpty() // Return empty set if no sets are present
-                }
-            }
-
-            else -> CompletableFuture.completedFuture(emptySet())
         }
 
+        // we finally union the found UUIDs
+        return CompletableFuture.allOf(*futures.toTypedArray()).thenApply {
+            futures
+                .map { it.getNow(emptySet()) }
+                .reduce { acc, set -> acc.union(set) }
+                .orEmpty()
+        }
     }
 
     private fun ReadTransaction.loadFact(factId: UUID): CompletableFuture<FdbFact?> =

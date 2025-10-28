@@ -2,15 +2,23 @@ package com.cassisi.openeventstore.core
 
 sealed interface FactQuery
 
-data class FactQueryItem(
+sealed interface TagQueryItem
+
+data class TagTypeItem(
     val types: List<String>,
     val tags: List<Pair<String, String>>
-) {
+) : TagQueryItem {
     init {
-        require(!(types.isEmpty() && tags.isEmpty())) { "At least types or tags must be defined!" }
+        require((types.isNotEmpty() && tags.isNotEmpty())) { "Both types and tags must be defined!" }
+    }
+}
+
+data class TagOnlyQueryItem(val tags: List<Pair<String, String>>) : TagQueryItem {
+    init {
+        require(tags.isNotEmpty()) { "Tags must be defined!" }
     }
 }
 
 data class TagQuery(
-    val queryItems: List<FactQueryItem>
+    val queryItems: List<TagQueryItem>
 ) : FactQuery

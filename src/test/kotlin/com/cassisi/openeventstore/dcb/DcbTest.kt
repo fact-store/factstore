@@ -5,7 +5,7 @@ import com.apple.foundationdb.FDB
 import com.cassisi.openeventstore.avro.AvroFdbStore
 import com.cassisi.openeventstore.avro.FactRegistry
 import com.cassisi.openeventstore.avro.createAvroFactDescriptor
-import com.cassisi.openeventstore.core.FactQueryItem
+import com.cassisi.openeventstore.core.TagTypeItem
 import com.cassisi.openeventstore.core.FactStore
 import com.cassisi.openeventstore.core.FdbFactStoreResetHelper
 import com.cassisi.openeventstore.core.TagQuery
@@ -72,7 +72,7 @@ class DcbTest {
         val queryMapper = CommandToQueryMapper<AddProject, TagQuery> {
             TagQuery(
                 queryItems = listOf(
-                    FactQueryItem(
+                    TagTypeItem(
                         listOf("PROJECT_ADDED"),
                         tags = listOf("projectId" to projectId.toString())
                     )
@@ -95,15 +95,10 @@ class DcbTest {
 
             val newEvents = decisionModel.handleOptimistically(command).toList()
             assertThat(newEvents).isNotEmpty()
+
+            val readEvents = avroStore.readSubject("PROJECT", command.projectId.toString())
+            assertThat(readEvents).hasOnlyElementsOfType(ProjectAdded::class.java).hasSize(1)
         }
-
-
-        avroStore.readFromTagQuery(TagQuery(queryItems = listOf(
-            FactQueryItem(
-                types = listOf("PROJECT_ADDED"),
-                tags = listOf()
-            )
-        ))).forEach { println(it) }
 
     }
 

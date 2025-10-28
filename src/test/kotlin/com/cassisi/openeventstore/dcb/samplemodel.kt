@@ -4,7 +4,6 @@ import com.cassisi.openeventstore.avro.FactType
 import com.cassisi.openeventstore.avro.SubjectId
 import com.cassisi.openeventstore.avro.SubjectType
 import com.fraktalio.fmodel.domain.Decider
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.Serializable

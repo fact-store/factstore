@@ -7,14 +7,18 @@ import com.apple.foundationdb.tuple.Tuple
 import com.apple.foundationdb.tuple.Versionstamp
 import com.cassisi.openeventstore.core.ConditionalTagQueryFactAppender
 import com.cassisi.openeventstore.core.Fact
-import com.cassisi.openeventstore.core.FactQueryItem
+import com.cassisi.openeventstore.core.TagOnlyQueryItem
+import com.cassisi.openeventstore.core.TagTypeItem
 import com.cassisi.openeventstore.core.TagQueryBasedAppendCondition
+import com.cassisi.openeventstore.core.TagQueryItem
 import kotlinx.coroutines.future.await
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import kotlin.collections.orEmpty
 
 const val LIMIT_ONE = 1
+const val OR_EQUAL = true
+const val ZERO_OFFSET = 0
 
 class ConditionalTagQueryFdbFactAppender(
     private val store: FdbFactStore
@@ -22,7 +26,6 @@ class ConditionalTagQueryFdbFactAppender(
 
     private val tagsIndexSubspace = store.tagsIndexSubspace
     private val tagsTypeIndexSubspace = store.tagsTypeIndexSubspace
-    private val typesIndexSubspace = store.eventTypeIndexSubspace
 
     override suspend fun append(
         facts: List<Fact>,
@@ -75,77 +78,18 @@ class ConditionalTagQueryFdbFactAppender(
     }
 
 
-    private fun FactQueryItem.resolveFactIds(
+    private fun TagQueryItem.resolveFactIds(
         tr: ReadTransaction,
         afterPosition: Pair<Versionstamp, Long>? = null
+    ): CompletableFuture<Set<UUID>> = when(this) {
+        is TagOnlyQueryItem -> queryByTags(tr, afterPosition)
+        is TagTypeItem -> queryByTypeAndTags(tr, afterPosition)
+    }
+
+    private fun TagOnlyQueryItem.queryByTags(
+        tr: ReadTransaction,
+        afterPosition: Pair<Versionstamp, Long>?
     ): CompletableFuture<Set<UUID>> {
-        val hasTags = this.tags.isNotEmpty()
-        val hasTypes = this.types.isNotEmpty()
-
-        return when {
-            hasTags && hasTypes -> queryByTypeAndTags(afterPosition, tr)
-            hasTags -> queryByTags(tr, afterPosition)
-            hasTypes -> queryFromTypes(tr, afterPosition)
-            else -> CompletableFuture.completedFuture(emptySet())
-        }
-
-    }
-
-    private fun FactQueryItem.queryFromTypes(
-        tr: ReadTransaction,
-        afterPosition: Pair<Versionstamp, Long>?
-    ): CompletableFuture<Set<UUID>?> {
-
-        // Helper function to create begin and end selectors for the range query
-        fun createSelectors(type: String, afterPosition: Pair<Versionstamp, Long>?): Pair<KeySelector, KeySelector> {
-            val tuple = if (afterPosition != null) {
-                // If there's a afterPosition, include it in the tuple
-                Tuple.from(type, afterPosition.first, afterPosition.second)
-            } else {
-                // If there's no afterPosition, just use the type
-                Tuple.from(type)
-            }
-
-            // Create the beginSelector (first greater than if afterPosition is provided)
-            val beginSelector = if (afterPosition != null) {
-                KeySelector.firstGreaterThan(typesIndexSubspace.pack(tuple))
-            } else {
-                KeySelector(typesIndexSubspace.pack(tuple), true, 0)
-            }
-
-            // Create the end selector based on the type range
-            val range = typesIndexSubspace.range(Tuple.from(type))
-            val endSelector = KeySelector.lastLessOrEqual(range.end)
-
-            return Pair(beginSelector, endSelector)
-        }
-
-        // Use the modified logic with the afterPosition support
-        val futures: List<CompletableFuture<Set<UUID>>> = types.map { type ->
-            val (beginSelector, endSelector) = createSelectors(type, afterPosition)
-
-            tr.getRange(beginSelector, endSelector, LIMIT_ONE)
-                .asList()
-                .thenApply { keyValues ->
-                    keyValues.map {
-                        typesIndexSubspace.unpack(it.key).getLastAsUuid()
-                    }.toSet() // Convert to Set to easily combine results
-                }
-        }
-
-        // After all futures complete, perform the union of the sets
-        return CompletableFuture.allOf(*futures.toTypedArray()).thenApply {
-            futures
-                .map { it.getNow(emptySet()) } // Extract the result of each CompletableFuture
-                .reduce { acc, set -> acc.union(set) } // Union all sets to get all matching fact IDs
-                .orEmpty() // Return empty set if no sets are present
-        }
-    }
-
-    private fun FactQueryItem.queryByTags(
-        tr: ReadTransaction,
-        afterPosition: Pair<Versionstamp, Long>?
-    ): CompletableFuture<Set<UUID>?> {
 
         // Helper function to create begin and end selectors for the range query
         fun createSelectors(
@@ -164,7 +108,7 @@ class ConditionalTagQueryFdbFactAppender(
             val beginSelector = if (afterPosition != null) {
                 KeySelector.firstGreaterThan(tagsIndexSubspace.pack(tuple))
             } else {
-                KeySelector(tagsIndexSubspace.pack(tuple), true, 0)
+                KeySelector(tagsIndexSubspace.pack(tuple), OR_EQUAL, ZERO_OFFSET)
             }
 
             // Create the end selector based on the tag range
@@ -196,9 +140,9 @@ class ConditionalTagQueryFdbFactAppender(
         }
     }
 
-    private fun FactQueryItem.queryByTypeAndTags(
-        afterPosition: Pair<Versionstamp, Long>?,
-        tr: ReadTransaction
+    private fun TagTypeItem.queryByTypeAndTags(
+        tr: ReadTransaction,
+        afterPosition: Pair<Versionstamp, Long>?
     ): CompletableFuture<Set<UUID>> {
         // Helper function to create start and end selectors
         fun createSelectors(type: String, tag: Pair<String, String>, afterPosition: Pair<Versionstamp, Long>?): Pair<KeySelector, KeySelector> {
@@ -211,7 +155,7 @@ class ConditionalTagQueryFdbFactAppender(
             val startKeySelector = if (afterPosition != null) {
                 KeySelector.firstGreaterThan(tagsTypeIndexSubspace.pack(tuple))
             } else {
-                KeySelector(tagsTypeIndexSubspace.pack(tuple), true, 0)
+                KeySelector(tagsTypeIndexSubspace.pack(tuple), OR_EQUAL, ZERO_OFFSET)
             }
 
             val range = tagsTypeIndexSubspace.subspace(Tuple.from(type, tag.first, tag.second)).range()
@@ -226,7 +170,7 @@ class ConditionalTagQueryFdbFactAppender(
                 // Create the start and end selectors
                 val (startKeySelector, endSelector) = createSelectors(type, tag, afterPosition)
 
-                tr.getRange(startKeySelector, endSelector, 1)
+                tr.getRange(startKeySelector, endSelector, LIMIT_ONE)
                     .asList()
                     .thenApply { keyValues ->
                         keyValues.map {
