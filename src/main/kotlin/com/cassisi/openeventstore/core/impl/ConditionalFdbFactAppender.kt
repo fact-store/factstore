@@ -2,13 +2,12 @@ package com.cassisi.openeventstore.core.impl
 
 import com.apple.foundationdb.Transaction
 import com.apple.foundationdb.tuple.Tuple
-import com.cassisi.openeventstore.core.ConditionalSubjectFactAppender
-import com.cassisi.openeventstore.core.Fact
-import com.cassisi.openeventstore.core.MultiSubjectAppendCondition
-import com.cassisi.openeventstore.core.SubjectAppendCondition
+import com.cassisi.openeventstore.core.*
 import kotlinx.coroutines.future.await
 import java.util.*
 import java.util.concurrent.CompletableFuture
+
+const val ERROR_MESSAGE_TEMPLATE = "PreCondition not met for subject (%s, %s): expected %s but got %s"
 
 class ConditionalFdbFactAppender(
     private val store: FdbFactStore
@@ -37,11 +36,13 @@ class ConditionalFdbFactAppender(
     }
 
     private fun Transaction.evaluatePreCondition(preCondition: MultiSubjectAppendCondition) {
-        preCondition.expectedLastEventIds.forEach { (subjectKey, expectedId) ->
+        preCondition.expectedLastEventIds.forEach { (subjectKey, expectedLastFactId) ->
             val (subjectType, subjectId) = subjectKey
             val actualLastFactId = getLastFactId(subjectType, subjectId)
-            if (actualLastFactId != expectedId) {
-                throw IllegalStateException("PreCondition not met for subject ($subjectType, $subjectId): expected $expectedId but got $actualLastFactId")
+            if (actualLastFactId != expectedLastFactId) {
+                throw AppendConditionViolationException(
+                    message = ERROR_MESSAGE_TEMPLATE.format(subjectType, subjectId, expectedLastFactId, actualLastFactId)
+                )
             }
         }
     }
@@ -54,7 +55,9 @@ class ConditionalFdbFactAppender(
         val expectedLastFactId = preCondition.expectedLatestEventId
 
         if (actualLastFactId != expectedLastFactId) {
-            throw IllegalStateException("PreCondition not met: Expected last fact ID $expectedLastFactId, but got $actualLastFactId")
+            throw AppendConditionViolationException(
+                message = ERROR_MESSAGE_TEMPLATE.format(subjectType, subjectId, expectedLastFactId, actualLastFactId)
+            )
         }
     }
 

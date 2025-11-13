@@ -36,3 +36,5 @@ interface ConditionalTagQueryFactAppender {
     suspend fun append(facts: List<Fact>, condition: TagQueryBasedAppendCondition)
 
 }
+
+class AppendConditionViolationException(message: String) : FactStoreException(message)

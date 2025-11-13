@@ -5,6 +5,7 @@ import com.apple.foundationdb.ReadTransaction
 import com.apple.foundationdb.Transaction
 import com.apple.foundationdb.tuple.Tuple
 import com.apple.foundationdb.tuple.Versionstamp
+import com.cassisi.openeventstore.core.AppendConditionViolationException
 import com.cassisi.openeventstore.core.ConditionalTagQueryFactAppender
 import com.cassisi.openeventstore.core.Fact
 import com.cassisi.openeventstore.core.TagOnlyQueryItem
@@ -19,6 +20,7 @@ import kotlin.collections.orEmpty
 const val LIMIT_ONE = 1
 const val OR_EQUAL = true
 const val ZERO_OFFSET = 0
+const val ERROR_MESSAGE = "TagQueryBasedAppendCondition not met"
 
 class ConditionalTagQueryFdbFactAppender(
     private val store: FdbFactStore
@@ -36,7 +38,7 @@ class ConditionalTagQueryFdbFactAppender(
                 if (isPreconditionMet) {
                     facts.store(tr)
                 } else {
-                    throw RuntimeException("Conditional append failed...")
+                    throw AppendConditionViolationException(ERROR_MESSAGE)
                 }
             }
         }.await()
@@ -125,7 +127,7 @@ class ConditionalTagQueryFdbFactAppender(
                 .asList()
                 .thenApply { keyValues ->
                     keyValues.map {
-                        tagsIndexSubspace.unpack(it.key).getLastAsUuid()
+                        Tuple.fromBytes(it.key).getLastAsUuid()
                     }.toSet() // Convert to Set to easily combine results
                 }
         }
@@ -174,7 +176,7 @@ class ConditionalTagQueryFdbFactAppender(
                     .asList()
                     .thenApply { keyValues ->
                         keyValues.map {
-                            tagsTypeIndexSubspace.unpack(it.key).getLastAsUuid()
+                            Tuple.fromBytes(it.key).getLastAsUuid()
                         }.toSet()
                     }
             }

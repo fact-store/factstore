@@ -172,7 +172,7 @@ class FactStoreTest {
         val fact3 = fact2.copy(id = UUID.randomUUID())
         assertThatThrownBy {
             runBlocking { store.append(fact3, SubjectAppendCondition(fact1Id)) }
-        }.isNotNull()
+        }.isInstanceOf(AppendConditionViolationException::class.java)
     }
 
     @Test
@@ -990,7 +990,7 @@ class FactStoreTest {
                     )
                 )
             }
-        }.isInstanceOf(RuntimeException::class.java)
+        }.isInstanceOf(AppendConditionViolationException::class.java)
 
 
         // append another user fact with another tag
