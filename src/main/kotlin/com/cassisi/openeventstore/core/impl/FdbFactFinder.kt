@@ -17,7 +17,7 @@ class FdbFactFinder(private val fdbFactStore: FdbFactStore) : FactFinder {
 
     private val db = fdbFactStore.db
 
-    private val factIdSubspace = fdbFactStore.factIdSubspace
+    private val factsSubspace = fdbFactStore.factsSubspace
 
     private val createdAtIndexSubspace = fdbFactStore.createdAtIndexSubspace
     private val subjectIndexSubspace = fdbFactStore.subjectIndexSubspace
@@ -26,23 +26,17 @@ class FdbFactFinder(private val fdbFactStore: FdbFactStore) : FactFinder {
 
     override suspend fun findById(factId: UUID): Fact? {
         return db.readAsync { tr ->
-            val factIdKey = factIdSubspace.pack(Tuple.from(factId))
-            tr[factIdKey].thenCompose { exists ->
-                if (exists == null) {
-                    CompletableFuture.completedFuture(null)
-                } else {
-                    with(fdbFactStore) {
-                        tr.loadFact(factId)
-                    }
-                }
+            val factIdKey = factsSubspace.pack(Tuple.from(factId))
+            tr[factIdKey].thenApply { factBytes ->
+                factBytes?.toSerializableFdbFact()?.toFact()
             }
-        }.await()?.fact
+        }.await()
     }
 
 
     override suspend fun existsById(factId: UUID): Boolean {
         return db.readAsync { tr ->
-            val factIdKey = factIdSubspace.pack(Tuple.from(factId))
+            val factIdKey = factsSubspace.pack(Tuple.from(factId))
             tr[factIdKey]
         }.await() != null
     }

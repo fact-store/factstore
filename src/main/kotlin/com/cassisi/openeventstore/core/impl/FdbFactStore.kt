@@ -10,46 +10,35 @@ import com.apple.foundationdb.tuple.Tuple
 import com.apple.foundationdb.tuple.Versionstamp
 import com.cassisi.openeventstore.core.Fact
 import com.cassisi.openeventstore.core.Subject
+import com.github.avrokotlin.avro4k.Avro
+import kotlinx.serialization.decodeFromByteArray
+import kotlinx.serialization.encodeToByteArray
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 import java.util.concurrent.CompletableFuture
-import kotlin.text.Charsets.UTF_8
 
 const val FACT_STORE = "fact-store"
-const val FACT_ID = "id"
-const val FACT_TYPE = "type"
-const val FACT_PAYLOAD = "payload"
-const val FACT_SUBJECT_TYPE = "subject-type"
-const val FACT_SUBJECT_ID = "subject-id"
-const val CREATED_AT = "created-at"
-const val POSITION = "position"
-const val METADATA = "metadata"
-const val TAGS = "tags"
 
-const val GLOBAL_FACT_POSITION_INDEX = "global"
-const val CREATED_AT_INDEX = "created-at-index"
-const val EVENT_TYPE_INDEX = "type-index"
-const val SUBJECT_INDEX = "subject-index"
-const val METADATA_INDEX = "metadata-index"
-const val TAGS_INDEX = "tags-index"
-const val TAGS_TYPE_INDEX = "tags-type-index"
+const val GLOBAL_FACT_POSITION_INDEX = 100
+const val CREATED_AT_INDEX = 101
+const val EVENT_TYPE_INDEX = 102
+const val SUBJECT_INDEX = 103
+const val METADATA_INDEX = 104
+const val TAGS_INDEX = 105
+const val TAGS_TYPE_INDEX = 106
 
 val EMPTY_BYTE_ARRAY = ByteArray(0)
 const val DEFAULT_INDEX = 0
+
+const val FACTS = 1
+const val FACT_POSITIONS = 2
 
 /**
  * A simple event/fact store implementation based on FoundationDB.
  *
  * FACT SPACES:
- *  /fact-store/id/{factId} = ∅   (existence / deduplication anchor)
- *  /fact-store/type/{factId} = type
- *  /fact-store/payload/{factId} = payload
- *  /fact-store/subject-type/{factId} = payload
- *  /fact-store/subject-id/{factId} = payload
- *  /fact-store/created-at/{factId} = timestamp in UTC
- *  /fact-store/position/{factId} = versionstamp + index
- *  /fact-store/metadata/{factId}/{key} = metadata value
- *  /fact-store/tags/{factId}/{key} = value
+ *  /fact-store/facts/{factId} = serialized fact
+ *  /fact-store/fact-positions/{factId} = fact position tuple (versionstamp+index)
  *
  * INDEX SPACES
  *  /fact-store/global/{versionstamp}/{index}/{factId} = ∅
@@ -70,15 +59,8 @@ class FdbFactStore(
     internal val root = DirectoryLayer.getDefault().createOrOpen(db, listOf(FACT_STORE)).get()
 
     // FACT SPACES
-    internal val factIdSubspace = root.subspace(Tuple.from(FACT_ID))
-    internal val factTypeSubspace = root.subspace(Tuple.from(FACT_TYPE))
-    internal val factPayloadSubspace = root.subspace(Tuple.from(FACT_PAYLOAD))
-    internal val subjectTypeSubspace = root.subspace(Tuple.from(FACT_SUBJECT_TYPE))
-    internal val subjectIdSubspace = root.subspace(Tuple.from(FACT_SUBJECT_ID))
-    internal val createdAtSubspace = root.subspace(Tuple.from(CREATED_AT))
-    internal val positionSubspace = root.subspace(Tuple.from(POSITION))
-    internal val metadataSubspace = root.subspace(Tuple.from(METADATA))
-    internal val tagsSubspace = root.subspace(Tuple.from(TAGS))
+    internal val factsSubspace = root.subspace(Tuple.from(FACTS))
+    internal val factPositionsSubspace = root.subspace(Tuple.from(FACT_POSITIONS))
 
     // INDEX SPACES
     internal val globalFactPositionSubspace = root.subspace(Tuple.from(GLOBAL_FACT_POSITION_INDEX))
@@ -104,24 +86,15 @@ class FdbFactStore(
     private fun Transaction.storeFact(fact: Fact, index: Int) {
         val factIdTuple = Tuple.from(fact.id)
 
-        this[factIdSubspace.pack(factIdTuple)] = EMPTY_BYTE_ARRAY
-        this[factTypeSubspace.pack(factIdTuple)] = fact.type.toByteArray(UTF_8)
-        this[factPayloadSubspace.pack(factIdTuple)] = fact.payload
-        this[subjectTypeSubspace.pack(factIdTuple)] = fact.subject.type.toByteArray(UTF_8)
-        this[subjectIdSubspace.pack(factIdTuple)] = fact.subject.id.toByteArray(UTF_8)
-        this[createdAtSubspace.pack(factIdTuple)] = Tuple.from(fact.createdAt.epochSecond, fact.createdAt.nano).pack()
+        // store fact itself
+        val serializedFactBytes = fact.toSerializableFdbFact().encodeToByteArray()
+        this[factsSubspace.pack(factIdTuple)] = serializedFactBytes
 
-        val positionKey = positionSubspace.pack(factIdTuple)
+        // store fact position (we use versionstamp+custom index position for that)
+        val positionKey = factPositionsSubspace.pack(factIdTuple)
         val positionValue = Tuple.from(Versionstamp.incomplete(), index).packWithVersionstamp()
         mutate(SET_VERSIONSTAMPED_VALUE, positionKey, positionValue)
 
-        fact.metadata.forEach { (key, value) ->
-            this[metadataSubspace.pack(factIdTuple.add(key))] = value.toByteArray(UTF_8)
-        }
-
-        fact.tags.forEach { (key, value) ->
-            this[tagsSubspace.pack(factIdTuple.add(key))] = value.toByteArray(UTF_8)
-        }
     }
 
     private fun Transaction.storeIndexes(fact: Fact, index: Int) {
@@ -170,84 +143,26 @@ class FdbFactStore(
 
     internal fun ReadTransaction.loadFact(factId: UUID): CompletableFuture<FdbFact?> {
         val factIdTuple = Tuple.from(factId)
-        val typeKey = factTypeSubspace.pack(factIdTuple)
-        val createdAtKey = createdAtSubspace.pack(factIdTuple)
-        val positionKey = positionSubspace.pack(factIdTuple)
-        val payloadKey = factPayloadSubspace.pack(factIdTuple)
-        val subjectTypeKey = subjectTypeSubspace.pack(factIdTuple)
-        val subjectIdKey = subjectIdSubspace.pack(factIdTuple)
-        val metadataKey = metadataSubspace.range(factIdTuple)
-        val tagsRange = tagsSubspace.range(factIdTuple)
+        val factKey = factsSubspace.pack(factIdTuple)
+        val factPositionKey = factPositionsSubspace.pack(factIdTuple)
 
-        val typeFuture = this[typeKey]
-        val createdAtFuture = this[createdAtKey]
-        val positionKeyFuture = this[positionKey]
-        val payloadFuture = this[payloadKey]
-        val subjectTypeFuture = this[subjectTypeKey]
-        val subjectIdFuture = this[subjectIdKey]
-        val metadataFuture = this.getRange(metadataKey).asList()
-        val tagsFuture = this.getRange(tagsRange).asList()
+        // fetch fact data and position in parallel
+        val factFuture = this[factKey]
+        val factPositionFuture = this[factPositionKey]
 
-        return CompletableFuture.allOf(
-            typeFuture,
-            createdAtFuture,
-            positionKeyFuture,
-            payloadFuture,
-            subjectTypeFuture,
-            subjectIdFuture,
-            metadataFuture,
-            tagsFuture
-        ).thenApply {
-            val typeBytes = typeFuture.getNow(null) ?: return@thenApply null
-            val createdAtBytes = createdAtFuture.getNow(null) ?: return@thenApply null
-            val payloadBytes = payloadFuture.getNow(null) ?: return@thenApply null
-            val subjectTypeBytes = subjectTypeFuture.getNow(null) ?: return@thenApply null
-            val subjectIdBytes = subjectIdFuture.getNow(null) ?: return@thenApply null
-            val createdAtTuple = Tuple.fromBytes(createdAtBytes)
-            val createdAtInstant = Instant.ofEpochSecond(
-                createdAtTuple.getLong(0),
-                createdAtTuple.getLong(1)
-            )
-
-            val positionBytes = positionKeyFuture.getNow(null) ?: return@thenApply null
-            val positionTuple = Tuple.fromBytes(positionBytes)
-
-            val metadata: Map<String, String> = metadataFuture.getNow(emptyList()).associate { kv ->
-                val tuple = Tuple.fromBytes(kv.key)
-                val key = tuple.getString(3)
-                val value = kv.value.toString(UTF_8)
-                key to value
-            }
-
-            val tags: Map<String, String> = tagsFuture.getNow(emptyList()).associate { kv ->
-                val tuple = Tuple.fromBytes(kv.key)
-                val key = tuple.getString(tuple.size() - 1) // /fact-store/tags/{factId}/{key}
-                val value = kv.value.toString(UTF_8)
-                key to value
-            }
-
-            val fact = Fact(
-                id = factId,
-                type = typeBytes.toString(UTF_8),
-                payload = payloadBytes,
-                createdAt = createdAtInstant,
-                subject = Subject(
-                    type = subjectTypeBytes.toString(UTF_8),
-                    id = subjectIdBytes.toString(UTF_8)
-                ),
-                metadata = metadata,
-                tags = tags,
-            )
-
+        // one data is available, build and return FdbFact, or return null if not found
+        return CompletableFuture.allOf(factFuture, factPositionFuture).thenApply {
+            val factBytes = factFuture.getNow(null) ?: return@thenApply null
+            val positionBytes = factPositionFuture.getNow(null) ?: return@thenApply null
             FdbFact(
-                fact = fact,
-                positionTuple = positionTuple
+                fact = factBytes.toSerializableFdbFact().toFact(),
+                positionTuple = Tuple.fromBytes(positionBytes)
             )
         }
     }
 
     fun UUID.getPosition(transaction: ReadTransaction): CompletableFuture<Pair<Versionstamp, Long>> =
-        transaction[positionSubspace.pack(Tuple.from(this))].thenApply {
+        transaction[factPositionsSubspace.pack(Tuple.from(this))].thenApply {
             it?.let { bytes ->
                 val positionTuple = Tuple.fromBytes(bytes)
                 Pair(positionTuple.getVersionstamp(0), positionTuple.getLong(1))
@@ -258,6 +173,33 @@ class FdbFactStore(
 
 // utils
 
-fun Tuple.getLastAsUuid(): UUID = getUUID(size() -1)
+internal fun Tuple.getLastAsUuid(): UUID = getUUID(size() - 1)
 
+internal fun Fact.toSerializableFdbFact() = SerializableFdbFact(
+    id = id,
+    type = type,
+    subjectType = subject.type,
+    subjectId = subject.id,
+    timeEpochSeconds = createdAt.epochSecond,
+    timeNanos = createdAt.nano,
+    metadata = metadata,
+    tags = tags,
+    payload = payload
+)
 
+internal fun SerializableFdbFact.encodeToByteArray() = Avro.encodeToByteArray(this)
+
+internal fun ByteArray.toSerializableFdbFact() = Avro.decodeFromByteArray<SerializableFdbFact>(this)
+
+internal fun SerializableFdbFact.toFact() = Fact(
+    id = id,
+    type = type,
+    payload = payload,
+    subject = Subject(
+        type = subjectType,
+        id = subjectId
+    ),
+    createdAt = Instant.ofEpochSecond(timeEpochSeconds, timeNanos.toLong()),
+    metadata = metadata,
+    tags = tags
+)
