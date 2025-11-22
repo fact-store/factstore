@@ -948,14 +948,6 @@ class FactStoreTest {
             )
         )
 
-//        db.read { tr ->
-//            val range = fdbFactStore.tagsTypeIndexSubspace.range()
-//            val list = tr.getRange(range).asList().join().map { keyValue ->
-//                println("key: ${Tuple.fromBytes(keyValue.key)}")
-//            }
-//
-//        }
-
         val fact2Id = FactId.generate()
         val fact2 = Fact(
             id = fact2Id,
@@ -1018,21 +1010,6 @@ class FactStoreTest {
             )
         )
 
-//        db.read { tr ->
-//            val range = fdbFactStore.tagsTypeIndexSubspace.range()
-//            val list = tr.getRange(range).asList().join().map { keyValue ->
-//                println("key: ${Tuple.fromBytes(keyValue.key)}")
-//            }
-//
-//            val range2 = fdbFactStore.tagsTypeIndexSubspace.range(Tuple.from("USER_CREATED", "user", "BOB"))
-//            tr.getRange(range2).asList().join().forEach { println(it) }
-//            tr.getRange(
-//            //    KeySelector(Tuple.from("USER_CREATED", "user", "BOB").pack(), true, 0),
-//
-//            )
-//
-//        }
-
         println("appending $fact3Id")
         store.append(
             facts = listOf(fact3),
@@ -1065,6 +1042,60 @@ class FactStoreTest {
             )
         )
 
+    }
+
+    @Test
+    fun testIsolationOfFactStoreInstances(): Unit = runBlocking {
+
+        // two instances of fact stores should be treated separately
+        // facts belong to one and only one fact store and cannot be "shared"
+        // two fact store instances should be treated as two logical database instances
+        // even if they share underlying infrastructure, like the same FoundationDB cluster
+
+        val factStore1Name = "factstore1"
+        val factStore2Name = "factstore2"
+
+        val factStore1 = buildFdbFactStore(name = factStore1Name)
+        val factStore2 = buildFdbFactStore(name = factStore2Name)
+
+        val fact1 = Fact(
+            id = FactId.generate(),
+            subject = Subject(
+                type = "USER",
+                id = "BOB",
+            ),
+            type = "USER_LOCKED",
+            payload = """{ "username": "BOB" }""".toByteArray(),
+            createdAt = Instant.now(),
+            tags = emptyMap()
+        )
+
+        val fact2 = Fact(
+            id = FactId.generate(),
+            subject = Subject(
+                type = "USER",
+                id = "ALICE",
+            ),
+            type = "USER_LOCKED",
+            payload = """{ "username": "ALICE" }""".toByteArray(),
+            createdAt = Instant.now(),
+            tags = emptyMap()
+        )
+
+        factStore1.append(fact1)
+        factStore2.append(fact2)
+
+        assertThat(factStore1.existsById(fact1.id)).isTrue()
+        assertThat(factStore1.existsById(fact2.id)).isFalse()
+
+        assertThat(factStore2.existsById(fact1.id)).isFalse()
+        assertThat(factStore2.existsById(fact2.id)).isTrue()
+
+        // instantiating a third instance with the same name as factstore1 should point to the same logical fact store
+
+        val factStore3 = buildFdbFactStore(name = factStore1Name)
+        assertThat(factStore3.existsById(fact1.id)).isTrue()
+        assertThat(factStore3.existsById(fact2.id)).isFalse()
     }
 
 }

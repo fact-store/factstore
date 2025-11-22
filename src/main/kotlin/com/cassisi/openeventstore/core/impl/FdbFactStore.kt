@@ -20,6 +20,7 @@ import java.util.*
 import java.util.concurrent.CompletableFuture
 
 const val FACT_STORE = "fact-store"
+const val DEFAULT_FACT_STORE_NAME = "default"
 
 const val GLOBAL_FACT_POSITION_INDEX = 100
 const val CREATED_AT_INDEX = 101
@@ -53,12 +54,13 @@ const val FACT_POSITIONS = 2
  *
  */
 class FdbFactStore(
-    internal val db: Database
+    internal val db: Database,
+    internal val name: String = DEFAULT_FACT_STORE_NAME
 ) {
 
 
     // DIRECTORIES
-    internal val root = DirectoryLayer.getDefault().createOrOpen(db, listOf(FACT_STORE)).get()
+    internal val root = DirectoryLayer.getDefault().createOrOpen(db, listOf(FACT_STORE, name)).get()
 
     // FACT SPACES
     internal val factsSubspace = root.subspace(Tuple.from(FACTS))
