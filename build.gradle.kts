@@ -42,6 +42,9 @@ dependencies {
 
     implementation("io.quarkus:quarkus-arc")
     testImplementation("io.quarkus:quarkus-junit5")
+    testImplementation("org.testcontainers:testcontainers:2.0.2")
+    testImplementation("org.testcontainers:testcontainers-junit-jupiter:2.0.2")
+    testImplementation("earth.adi:testcontainers-foundationdb:1.1.0")
     testImplementation("org.assertj:assertj-core:$assertJVersion")
 }
 

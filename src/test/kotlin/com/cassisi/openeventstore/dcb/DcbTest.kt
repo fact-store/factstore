@@ -51,7 +51,7 @@ class DcbTest {
             conditionalSubjectFactAppender = ConditionalFdbFactAppender(fdbFactStore),
             conditionalTagQueryFactAppender = ConditionalTagQueryFdbFactAppender(fdbFactStore),
         )
-        resetHelper = FdbFactStoreResetHelper(fdbFactStore)
+        resetHelper = FdbFactStoreResetHelper(db)
 
 
         FactRegistry.register(createAvroFactDescriptor<ProjectAdded>("PROJECT_ADDED"))

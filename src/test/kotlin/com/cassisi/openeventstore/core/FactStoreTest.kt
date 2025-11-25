@@ -1,8 +1,8 @@
 package com.cassisi.openeventstore.core
 
-import com.apple.foundationdb.Database
 import com.apple.foundationdb.FDB
 import com.cassisi.openeventstore.core.impl.*
+import earth.adi.testcontainers.containers.FoundationDBContainer
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.take
@@ -16,32 +16,44 @@ import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
+import org.junit.jupiter.api.TestInstance.Lifecycle.PER_CLASS
+import org.testcontainers.junit.jupiter.Container
+import org.testcontainers.junit.jupiter.Testcontainers
+import org.testcontainers.utility.DockerImageName
 import java.time.Instant
 import java.util.*
 import kotlin.system.measureTimeMillis
 import kotlin.time.Duration.Companion.seconds
 
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+const val FDB_VERSION = "7.3.69"
+const val FDB_API_VERSION = 730
+
+@TestInstance(PER_CLASS)
+@Testcontainers
 class FactStoreTest {
 
-    private lateinit var store: FactStore
-    private lateinit var resetHelper: FdbFactStoreResetHelper
-    private lateinit var db: Database
-    private lateinit var fdbFactStore: FdbFactStore
+    companion object {
 
-    @BeforeAll
-    fun setupFDB() {
-        FDB.selectAPIVersion(730)
-        db = FDB.instance().open("/etc/foundationdb/fdb.cluster")
-        fdbFactStore = FdbFactStore(db)
-        store = FactStore(
-            factAppender = FdbFactAppender(fdbFactStore),
-            factFinder = FdbFactFinder(fdbFactStore),
-            factStreamer = FdbFactStreamer(fdbFactStore),
-            conditionalSubjectFactAppender = ConditionalFdbFactAppender(fdbFactStore),
-            conditionalTagQueryFactAppender = ConditionalTagQueryFdbFactAppender(fdbFactStore),
-        )
-        resetHelper = FdbFactStoreResetHelper(fdbFactStore)
+        lateinit var store: FactStore
+        lateinit var resetHelper: FdbFactStoreResetHelper
+        lateinit var clusterFilePath: String
+
+        @Container
+        val testFdbCluster = FoundationDBContainer(DockerImageName.parse("foundationdb/foundationdb:$FDB_VERSION"))
+
+        @JvmStatic
+        @BeforeAll
+        fun setupFDB() {
+            FDB.selectAPIVersion(FDB_API_VERSION)
+            clusterFilePath = testFdbCluster.clusterFilePath
+            val db = FDB.instance().open(clusterFilePath)
+            store = buildFdbFactStore(
+                clusterFilePath = testFdbCluster.clusterFilePath,
+                name = "integration-test"
+            )
+            resetHelper = FdbFactStoreResetHelper(db)
+        }
+
     }
 
     @BeforeEach
@@ -1055,8 +1067,8 @@ class FactStoreTest {
         val factStore1Name = "factstore1"
         val factStore2Name = "factstore2"
 
-        val factStore1 = buildFdbFactStore(name = factStore1Name)
-        val factStore2 = buildFdbFactStore(name = factStore2Name)
+        val factStore1 = buildFdbFactStore(clusterFilePath = clusterFilePath, name = factStore1Name)
+        val factStore2 = buildFdbFactStore(clusterFilePath = clusterFilePath, name = factStore2Name)
 
         val fact1 = Fact(
             id = FactId.generate(),
@@ -1093,7 +1105,7 @@ class FactStoreTest {
 
         // instantiating a third instance with the same name as factstore1 should point to the same logical fact store
 
-        val factStore3 = buildFdbFactStore(name = factStore1Name)
+        val factStore3 = buildFdbFactStore(clusterFilePath = clusterFilePath, name = factStore1Name)
         assertThat(factStore3.existsById(fact1.id)).isTrue()
         assertThat(factStore3.existsById(fact2.id)).isFalse()
     }

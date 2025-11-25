@@ -1,13 +1,12 @@
 package com.cassisi.openeventstore.core
 
-import com.cassisi.openeventstore.core.impl.FdbFactStore
+import com.apple.foundationdb.Database
 
-class FdbFactStoreResetHelper(private val factStore: FdbFactStore) {
+class FdbFactStoreResetHelper(private val database: Database) {
 
     fun reset() {
-        factStore.db.run { tr ->
-            val range = factStore.root.range()
-            tr.clear(range.begin, range.end)
+        database.run { tr ->
+            tr.clear(ByteArray(0), byteArrayOf(0xff.toByte()))
         }
     }
 }

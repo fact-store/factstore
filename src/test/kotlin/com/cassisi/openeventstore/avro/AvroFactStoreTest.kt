@@ -33,7 +33,7 @@ class AvroFactStoreTest {
             conditionalSubjectFactAppender = ConditionalFdbFactAppender(fdbFactStore),
             conditionalTagQueryFactAppender = ConditionalTagQueryFdbFactAppender(fdbFactStore)
         )
-        resetHelper = FdbFactStoreResetHelper(fdbFactStore)
+        resetHelper = FdbFactStoreResetHelper(db)
     }
 
     @BeforeEach
