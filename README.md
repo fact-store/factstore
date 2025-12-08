@@ -11,13 +11,10 @@ FactStore is a modular event-sourcing system with two main parts:
 This subproject defines the core contracts and behavioral rules for a FactStore implementation.
 It is written in Kotlin and establishes the APIs for:
 
-Appending events (also called facts)
-
-Reading streams of facts
-
-Subscribing to live or historical streams
-
-Managing event ordering and consistency guarantees
+- Appending events (also called facts)
+- Reading streams of facts
+- Subscribing to live or historical streams
+- Managing event ordering and consistency guarantees
 
 This module is intentionally implementation-agnostic, serving as the foundation for any backend.
 
