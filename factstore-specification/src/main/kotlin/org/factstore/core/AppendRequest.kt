@@ -9,7 +9,13 @@ data class AppendRequest(
     val facts: List<Fact>,
     val idempotencyKey: IdempotencyKey,
     val condition: AppendCondition = AppendCondition.None
-)
+) {
+
+    init {
+        require(facts.map { it.id }.distinct().size == facts.size) { "Duplicated FactId detected!" }
+    }
+
+}
 
 sealed interface AppendCondition {
 
