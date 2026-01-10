@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.assertj.core.api.Assertions.catchThrowable
 import org.factstore.core.*
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
@@ -1031,7 +1033,7 @@ class FactStoreTest {
         store.append(appendRequest2).also { assertThat(it).isInstanceOf(AppendResult.Appended::class.java) }
 
         val appendRequest3 = AppendRequest(
-            facts = listOf(fact2),
+            facts = listOf(fact2.copy(id = FactId.generate())),
             idempotencyKey = IdempotencyKey(),
             condition = AppendCondition.TagQueryBased(
                 failIfEventsMatch = tagQuery,
@@ -1202,6 +1204,68 @@ class FactStoreTest {
         assertThat(appendResult2).isInstanceOf(AppendResult.AlreadyApplied::class.java)
 
 
+    }
+
+    @Test
+    fun testEnforceUniquenessOfFactIds(): Unit = runBlocking {
+        val factId = FactId.generate()
+
+        val fact1 = Fact(
+            id = factId,
+            subjectRef = SubjectRef(
+                type = "TEST_TYPE",
+                id = "TEST_ID",
+            ),
+            type = "TEST_FACT_TYPE",
+            payload = """DATA""".toByteArray(),
+            createdAt = Instant.now(),
+            tags = emptyMap()
+        )
+
+        val fact2 = fact1.copy()
+
+        store.append(fact1)
+
+        assertDuplicateFactIds(
+            expected = listOf(factId)
+        ) {
+            store.append(fact2)
+        }
+
+        assertDuplicateFactIds(
+            expected = listOf(factId)
+        ) {
+            store.append(listOf(fact2))
+        }
+
+        assertDuplicateFactIds(
+            expected = listOf(factId)
+        ) {
+            store.append(
+                AppendRequest(
+                    facts = listOf(fact2),
+                    idempotencyKey = IdempotencyKey(),
+                    condition = AppendCondition.None
+                )
+            )
+        }
+    }
+
+    private fun assertDuplicateFactIds(
+        expected: List<FactId>,
+        block: suspend () -> Unit
+    ) {
+        val exception = catchThrowable {
+            runBlocking { block() }
+        }
+
+        assertThat(exception)
+            .isInstanceOf(DuplicateFactIdException::class.java)
+
+        val duplicateException = exception as DuplicateFactIdException
+
+        assertThat(duplicateException.factIds)
+            .containsExactlyElementsOf(expected)
     }
 
 }

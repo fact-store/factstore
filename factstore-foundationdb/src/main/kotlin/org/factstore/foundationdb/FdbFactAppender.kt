@@ -53,10 +53,30 @@ class FdbFactAppender(
                 if (existing != null) {
                     CompletableFuture.completedFuture(AppendResult.AlreadyApplied)
                 } else {
-                    appendNew(request, tr, key)
+                    request.validate(tr).thenCompose {
+                        appendNew(request, tr, key)
+                    }
                 }
             }
         }.await()
+
+    private fun AppendRequest.validate(transaction: Transaction): CompletableFuture<Unit> {
+        val checks: List<CompletableFuture<FactId?>> = facts.map { fact ->
+            val factKey = store.factsSubspace.pack(fact.id.toTuple())
+            transaction.get(factKey).thenApply { existing ->
+                if (existing != null) fact.id else null
+            }
+        }
+
+        return CompletableFuture
+            .allOf(*checks.toTypedArray())
+            .thenApply {
+                val duplicatedFactIds = checks.mapNotNull { it.resultNow() }
+                if (duplicatedFactIds.isNotEmpty()) {
+                    throw DuplicateFactIdException(duplicatedFactIds)
+                }
+            }
+    }
 
     private fun appendNew(
         request: AppendRequest,
