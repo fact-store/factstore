@@ -15,7 +15,8 @@ sealed class FactStoreException(message: String) : RuntimeException(message)
  * constraints or invariants of the FactStore and cannot be processed
  * successfully without modifying the request.
  */
-sealed class InvalidAppendRequestException(message: String) : FactStoreException(message)
+sealed class InvalidAppendRequestException(message: String) :
+    FactStoreException(message)
 
 /**
  * Thrown when one or more facts with the same [FactId] already exist in the store.
@@ -24,4 +25,5 @@ sealed class InvalidAppendRequestException(message: String) : FactStoreException
  * facts with identifiers that have already been used violates this invariant
  * and results in a permanent failure.
  */
-class DuplicateFactIdException(val factIds: List<FactId>) : InvalidAppendRequestException("FactId(s) $factIds already exists")
+class DuplicateFactIdException(val factIds: List<FactId>) :
+    InvalidAppendRequestException("FactId(s) $factIds already exists")
