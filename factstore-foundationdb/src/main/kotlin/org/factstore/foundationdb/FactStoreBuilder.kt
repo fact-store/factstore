@@ -5,8 +5,10 @@ import org.factstore.core.FactStore
 
 fun buildFdbFactStore(
     clusterFilePath: String = "/etc/foundationdb/fdb.cluster",
-    name: String = DEFAULT_FACT_STORE_NAME
+    name: String = DEFAULT_FACT_STORE_NAME,
+    apiVersion: Int = 730
 ): FactStore {
+    FDB.selectAPIVersion(apiVersion)
     val db = FDB.instance().open(clusterFilePath)
     val fdbFactStore = FdbFactStore(db, name)
     return FactStore(

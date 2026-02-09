@@ -1,25 +1,233 @@
 import http from 'k6/http';
 import { check } from 'k6';
+import { uuidv4 } from 'https://jslib.k6.io/k6-utils/1.4.0/index.js';
 
 export let options = {
-    stages: [
-        { duration: '30s', target: 200 },  // ramp to 200 VUs
-        { duration: '1m', target: 200 },
-        { duration: '30s', target: 500 },  // ramp to 500 VUs
-        { duration: '1m', target: 500 },
-        { duration: '30s', target: 1000 }, // ramp to 1000 VUs
-        { duration: '2m', target: 1000 },
-        { duration: '30s', target: 0 },    // ramp down
-    ],
+    vus: 10,           // virtual users
+    duration: '30s',   // test duration
     thresholds: {
-        http_req_duration: ['p(95)<100'], // tighten SLA: 95% < 100ms
-        http_req_failed: ['rate<0.01'],   // <1% failures allowed
+        http_req_duration: ['p(90)<500'], // 90% < 500ms
     },
 };
 
 export default function () {
-    const res = http.post('http://localhost:8080/test');
+    const url = 'http://localhost:8081/api/v1/fact-store/my-fact-store/facts/append';
+
+    const payload = JSON.stringify({
+        idempotencyKey: uuidv4(),
+                                   facts: [
+                                       {
+                                           id: uuidv4(),
+                                   type: 'UserCreated',
+                                   subjectRef: {
+                                       type: 'user',
+                                       id: `user-${__VU}`, // per-VU subject
+                                   },
+                                   payload: {
+                                       // "Hello world" base64-encoded
+                                       data: 'SGVsbG8gd29ybGQ='
+                                   },
+                                   metadata: {
+                                   },
+                                   tags: {
+                                       env: 'local',
+                                       vu: String(__VU)
+                                   }
+                                       },
+                                       {
+                                           id: uuidv4(),
+                                   type: 'UserCreated',
+                                   subjectRef: {
+                                       type: 'user',
+                                       id: `user-${__VU}`, // per-VU subject
+                                   },
+                                   payload: {
+                                       // "Hello world" base64-encoded
+                                       data: 'SGVsbG8gd29ybGQ='
+                                   },
+                                   metadata: {
+                                   },
+                                   tags: {
+                                       env: 'local',
+                                       vu: String(__VU)
+                                   }
+                                       },
+                                       {
+                                           id: uuidv4(),
+                                   type: 'UserCreated',
+                                   subjectRef: {
+                                       type: 'user',
+                                       id: `user-${__VU}`, // per-VU subject
+                                   },
+                                   payload: {
+                                       // "Hello world" base64-encoded
+                                       data: 'SGVsbG8gd29ybGQ='
+                                   },
+                                   metadata: {
+                                   },
+                                   tags: {
+                                       env: 'local',
+                                       vu: String(__VU)
+                                   }
+                                       },
+                                       {
+                                           id: uuidv4(),
+                                   type: 'UserCreated',
+                                   subjectRef: {
+                                       type: 'user',
+                                       id: `user-${__VU}`, // per-VU subject
+                                   },
+                                   payload: {
+                                       // "Hello world" base64-encoded
+                                       data: 'SGVsbG8gd29ybGQ='
+                                   },
+                                   metadata: {
+                                   },
+                                   tags: {
+                                       env: 'local',
+                                       vu: String(__VU)
+                                   }
+                                       },
+                                       {
+                                           id: uuidv4(),
+                                   type: 'UserCreated',
+                                   subjectRef: {
+                                       type: 'user',
+                                       id: `user-${__VU}`, // per-VU subject
+                                   },
+                                   payload: {
+                                       // "Hello world" base64-encoded
+                                       data: 'SGVsbG8gd29ybGQ='
+                                   },
+                                   metadata: {
+                                   },
+                                   tags: {
+                                       env: 'local',
+                                   vu: String(__VU)
+                                   }
+                                       },
+                                       {
+                                           id: uuidv4(),
+                                   type: 'UserCreated',
+                                   subjectRef: {
+                                       type: 'user',
+                                   id: `user-${__VU}`, // per-VU subject
+                                   },
+                                   payload: {
+                                       // "Hello world" base64-encoded
+                                       data: 'SGVsbG8gd29ybGQ='
+                                   },
+                                   metadata: {
+                                   },
+                                   tags: {
+                                       env: 'local',
+                                   vu: String(__VU)
+                                   }
+                                       },
+                                       {
+                                           id: uuidv4(),
+                                   type: 'UserCreated',
+                                   subjectRef: {
+                                       type: 'user',
+                                   id: `user-${__VU}`, // per-VU subject
+                                   },
+                                   payload: {
+                                       // "Hello world" base64-encoded
+                                       data: 'SGVsbG8gd29ybGQ='
+                                   },
+                                   metadata: {
+                                   },
+                                   tags: {
+                                       env: 'local',
+                                   vu: String(__VU)
+                                   }
+                                       },
+                                       {
+                                           id: uuidv4(),
+                                   type: 'UserCreated',
+                                   subjectRef: {
+                                       type: 'user',
+                                   id: `user-${__VU}`, // per-VU subject
+                                   },
+                                   payload: {
+                                       // "Hello world" base64-encoded
+                                       data: 'SGVsbG8gd29ybGQ='
+                                   },
+                                   metadata: {
+                                   },
+                                   tags: {
+                                       env: 'local',
+                                       vu: String(__VU)
+                                   }
+                                       },
+                                       {
+                                           id: uuidv4(),
+                                   type: 'UserCreated',
+                                   subjectRef: {
+                                       type: 'user',
+                                       id: `user-${__VU}`, // per-VU subject
+                                   },
+                                   payload: {
+                                       // "Hello world" base64-encoded
+                                       data: 'SGVsbG8gd29ybGQ='
+                                   },
+                                   metadata: {
+                                   },
+                                   tags: {
+                                       env: 'local',
+                                       vu: String(__VU)
+                                   }
+                                       },
+                                       {
+                                           id: uuidv4(),
+                                   type: 'UserCreated',
+                                   subjectRef: {
+                                       type: 'user',
+                                       id: `user-${__VU}`, // per-VU subject
+                                   },
+                                   payload: {
+                                       // "Hello world" base64-encoded
+                                       data: 'SGVsbG8gd29ybGQ='
+                                   },
+                                   metadata: {
+                                   },
+                                   tags: {
+                                       env: 'local',
+                                       vu: String(__VU)
+                                   }
+                                       },
+                                       {
+                                           id: uuidv4(),
+                                   type: 'UserCreated',
+                                   subjectRef: {
+                                       type: 'user',
+                                       id: `user-${__VU}`, // per-VU subject
+                                   },
+                                   payload: {
+                                       // "Hello world" base64-encoded
+                                       data: 'SGVsbG8gd29ybGQ='
+                                   },
+                                   metadata: {
+                                   },
+                                   tags: {
+                                       env: 'local',
+                                       vu: String(__VU)
+                                   }
+                                       }
+
+                                   ]
+    });
+
+    const params = {
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+        },
+    };
+
+    const res = http.post(url, payload, params);
+
     check(res, {
-        'status is 204': (r) => r.status === 204,
+        'status is 200': (r) => r.status === 200,
     });
 }
