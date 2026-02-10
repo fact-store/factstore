@@ -1,5 +1,6 @@
 package org.factstore.server.http
 
+import jakarta.validation.Valid
 import jakarta.ws.rs.*
 import jakarta.ws.rs.core.MediaType.APPLICATION_JSON
 import jakarta.ws.rs.core.Response
@@ -15,7 +16,7 @@ class AppendResource(
     @Produces(APPLICATION_JSON)
     suspend fun appendFacts(
         @PathParam("factStoreName") factStoreName: String,
-        httpRequest: AppendHttpRequest
+        @Valid httpRequest: AppendHttpRequest
     ): Response =
         factStoreProvider
             .findByName(factStoreName)
