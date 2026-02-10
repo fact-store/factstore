@@ -16,6 +16,7 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
     implementation("io.quarkus:quarkus-arc")
     implementation("io.quarkus:quarkus-config-yaml")
+    implementation("io.quarkus:quarkus-hibernate-validator")
 
     // factstore libs
     implementation(project(":factstore-specification"))

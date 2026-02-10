@@ -1,7 +1,5 @@
 package org.factstore.server.http
 
-import io.smallrye.mutiny.Multi
-import io.smallrye.mutiny.coroutines.asMulti
 import jakarta.ws.rs.GET
 import jakarta.ws.rs.Path
 import jakarta.ws.rs.PathParam
@@ -9,8 +7,7 @@ import jakarta.ws.rs.Produces
 import jakarta.ws.rs.core.MediaType.APPLICATION_JSON
 import jakarta.ws.rs.core.MediaType.SERVER_SENT_EVENTS
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.take
-import org.factstore.core.Fact
+import kotlinx.coroutines.flow.map
 import org.factstore.server.FactStoreProvider
 import org.jboss.resteasy.reactive.RestStreamElementType
 
@@ -24,10 +21,10 @@ class StreamResource(
     @Produces(SERVER_SENT_EVENTS)
     suspend fun streamFacts(
         @PathParam("factStoreName") factStoreName: String,
-    ): Flow<Fact> =
+    ): Flow<FactHttp> =
         factStoreProvider
             .findByName(factStoreName)
             .streamAll()
-            .take(50_000)
+            .map { it.toFactHttp() }
 
 }
