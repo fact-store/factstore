@@ -131,7 +131,7 @@ class FdbFactFinder(private val fdbFactStore: FdbFactStore) : FactFinder {
 
     private fun TagOnlyQueryItem.resolveFactIds(tr: ReadTransaction): CompletableFuture<Set<UUID>> {
         val futures: List<CompletableFuture<Set<UUID>>> = tags.map { tag ->
-            val range = tagsIndexSubspace.range(Tuple.from(tag.first, tag.second))
+            val range = tagsIndexSubspace.range(Tuple.from(tag.first.value, tag.second.value))
             tr.getRange(range).asList().thenApply { keyValues ->
                 keyValues.map {
                     val tuple = tagsIndexSubspace.unpack(it.key)
