@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.map
 import org.factstore.server.FactStoreProvider
 import org.jboss.resteasy.reactive.RestStreamElementType
 
-@Path("/v1/fact-store/{factStoreName}/facts/stream")
+@Path("/v1/stores/{factStoreName}/facts/stream")
 class StreamResource(
     private val factStoreProvider: FactStoreProvider
 ) {
