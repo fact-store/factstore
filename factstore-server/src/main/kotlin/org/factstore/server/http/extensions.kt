@@ -57,7 +57,7 @@ fun AppendConditionHttp.toAppendCondition(): AppendCondition =
             )
     }
 
-fun TagQueryHttp.toTagQuery(): TagQuery =
+fun FactQueryHttp.toTagQuery(): TagQuery =
     TagQuery(
         queryItems = queryItems.map { it.toTagQueryItem() }
     )
@@ -88,7 +88,7 @@ fun FactHttp.toFact() = Fact(
     type = type.toFactType(),
     payload = payload.toPayload(),
     subjectRef = subjectRef.toSubjectRef(),
-    appendedAt = Instant.now(),
+    appendedAt = appendedAt ?: Instant.now(),
     metadata = metadata,
     tags = tags.entries.associate { Pair(it.key.toTagKey(), it.value.toTagValue()) }
 )
@@ -106,6 +106,7 @@ fun Fact.toFactHttp() = FactHttp(
     id = id.uuid,
     type = type.value,
     subjectRef = subjectRef.toSubjectRefHttp(),
+    appendedAt = appendedAt,
     payload = payload.toFactPayloadHttp(),
     metadata = metadata,
     tags = tags.entries.associate { Pair(it.key.value, it.value.value) }

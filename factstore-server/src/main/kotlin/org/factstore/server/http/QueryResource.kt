@@ -35,7 +35,7 @@ class QueryResource(
     @Path("/facts/query")
     suspend fun findByQuery(
         @PathParam("factStoreName") factStoreName: String,
-        @Valid factQueryHttp: TagQueryHttp
+        @Valid factQueryHttp: FactQueryHttp
     ): Response =
         factStoreProvider
             .findByName(factStoreName)

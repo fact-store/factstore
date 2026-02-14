@@ -2,6 +2,7 @@ package org.factstore.server.http
 
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
+import java.time.Instant
 import java.util.UUID
 
 data class AppendHttpRequest(
@@ -47,12 +48,12 @@ sealed interface AppendConditionHttp {
     ) : AppendConditionHttp
 
     data class TagQueryBased(
-        val failIfEventsMatch: TagQueryHttp,
+        val failIfEventsMatch: FactQueryHttp,
         val after: UUID?
     ) : AppendConditionHttp
 }
 
-data class TagQueryHttp(
+data class FactQueryHttp(
     val queryItems: List<TagQueryItemHttp>
 )
 
@@ -87,6 +88,7 @@ data class FactHttp(
     val id: UUID?,
     val type: String,
     val subjectRef: SubjectRefHttp,
+    val appendedAt: Instant?,
     val payload: FactPayloadHttp,
     val metadata: Map<String, String> = emptyMap(),
     val tags: Map<String, String> = emptyMap()
