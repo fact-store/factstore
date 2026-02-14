@@ -1,3 +1,10 @@
 quarkus:
   http:
     root-path: "/api"
+
+factstore:
+  backend: foundationdb
+
+  foundationdb:
+    cluster-file: /etc/foundationdb/fdb.cluster
+    api-version: 730

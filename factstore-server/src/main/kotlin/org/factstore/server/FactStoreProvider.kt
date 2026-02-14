@@ -2,18 +2,27 @@ package org.factstore.server
 
 import jakarta.enterprise.context.ApplicationScoped
 import org.factstore.core.FactStore
+import org.factstore.foundationdb.FoundationDBFactStoreContext
 import org.factstore.foundationdb.buildFdbFactStore
 
 @ApplicationScoped
-class FactStoreProvider {
+class FactStoreProvider(
+    private val foundationDbContext: FoundationDBFactStoreContext
+) {
 
-    val clusterFilePath: String = "/etc/foundationdb/fdb.cluster"
-    val name: String = "test-factstore"
+    // TODO make thread safe
+    private val factStores = mutableMapOf<String, FactStore>()
 
+    fun findByName(factStoreName: String): FactStore =
+        factStores[factStoreName] ?: createFactStore(factStoreName)
 
-    val fdbFactStore = buildFdbFactStore(clusterFilePath, name)
-
-
-    fun findByName(factStoreName: String): FactStore = fdbFactStore
+    private fun createFactStore(factStoreName: String): FactStore {
+        val factStore = buildFdbFactStore(
+            context = foundationDbContext,
+            name = factStoreName
+        )
+        factStores[factStoreName] = factStore
+        return factStore
+    }
 
 }
